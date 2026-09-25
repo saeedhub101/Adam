@@ -30,6 +30,17 @@ pub fn list(path: &Path) -> Result<Vec<(i64, String, String, bool)>, String> {
         .map_err(|e| e.to_string())?;
     rows.map(|r| r.map_err(|e| e.to_string())).collect()
 }
+pub fn due_unnotified(path: &Path) -> Result<Vec<(i64, String, String)>, String> {
+    let c = Connection::open(path).map_err(|e| e.to_string())?;
+    let mut s = c.prepare("SELECT id,title,due_at FROM reminders WHERE completed=0 AND notified=0 AND datetime(due_at) <= datetime('now') ORDER BY due_at ASC").map_err(|e| e.to_string())?;
+    let rows = s.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).map_err(|e| e.to_string())?;
+    rows.map(|r| r.map_err(|e| e.to_string())).collect()
+}
+pub fn mark_notified(path: &Path, id: i64) -> Result<(), String> {
+    let c = Connection::open(path).map_err(|e| e.to_string())?;
+    c.execute("UPDATE reminders SET notified=1 WHERE id=?1", params![id]).map_err(|e| e.to_string())?;
+    Ok(())
+}
 pub fn complete(path: &Path, id: i64) -> Result<(), String> {
     let c = Connection::open(path).map_err(|e| e.to_string())?;
     c.execute("UPDATE reminders SET completed=1 WHERE id=?1", params![id])
