@@ -1,7 +1,7 @@
-mod ai;
 mod agent;
-mod computer;
+mod ai;
 mod calendar;
+mod computer;
 mod local_brain;
 mod memory;
 mod permissions;
@@ -205,7 +205,11 @@ fn load_position(app: tauri::AppHandle) -> Result<Option<WindowState>, String> {
 }
 
 #[tauri::command]
-fn memory_add(app: tauri::AppHandle, content: String, kind: Option<String>) -> Result<i64, String> {
+fn memory_add(
+    app: tauri::AppHandle,
+    content: String,
+    kind: Option<String>,
+) -> Result<i64, String> {
     memory::add(
         &memory_path(&app)?,
         &content,
@@ -326,7 +330,11 @@ fn permission_list(app: tauri::AppHandle) -> Result<Vec<permissions::Permission>
     permissions::list(&memory_path(&app)?)
 }
 #[tauri::command]
-fn permission_set(app: tauri::AppHandle, capability: String, mode: String) -> Result<(), String> {
+fn permission_set(
+    app: tauri::AppHandle,
+    capability: String,
+    mode: String,
+) -> Result<(), String> {
     let p = memory_path(&app)?;
     permissions::set(&p, &capability, &mode)?;
     permissions::add_log(&p, "permission", &format!("{}={}", capability, mode))
