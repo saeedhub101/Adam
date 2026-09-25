@@ -89,6 +89,10 @@ export class AdamScene {
     this.stateIndex.clear();
     this.baseRotations.clear();
     this.morphTargets = [];
+    this.blinkTargets = [];
+    this.blinkTime = 2.5;
+    this.blinkActive = false;
+    this.gestureQueue = [];
     this.talking = false;
     this.talkTime = 0;
     this.idleTime = 0;
@@ -139,7 +143,7 @@ export class AdamScene {
   }
 
   async loadFiles(files: File[]): Promise<CharacterCapabilities> {
-    const valid = files.filter((f) => /\.(glb|gltf|bin|png|jpg|jpeg|webp|ktx2)$/i.test(f.name));
+    const valid = files.filter((f) => /\.(glb|gltf|fbx|bin|png|jpg|jpeg|webp|ktx2)$/i.test(f.name));
     const main = valid.find((f) => /\.(glb|gltf)$/i.test(f.name));
     if (!main) throw new Error("No GLB/GLTF model was selected.");
     if (main.size > 200 * 1024 * 1024) throw new Error("Character file is larger than 200MB.");
@@ -148,9 +152,20 @@ export class AdamScene {
     for (const file of valid) { const url = URL.createObjectURL(file); this.objectUrls.push(url); map.set(file.name.toLowerCase(), url); }
     const manager = new THREE.LoadingManager();
     manager.setURLModifier((requested) => { const clean = decodeURIComponent(requested).split(/[?#]/)[0].replace(/\\/g, "/"); const base = clean.substring(clean.lastIndexOf("/") + 1).toLowerCase(); return map.get(clean.toLowerCase()) ?? map.get(base) ?? requested; });
-    const loader = new GLTFLoader(manager);
     const url = map.get(main.name.toLowerCase());
     if (!url) throw new Error("Unable to create a local model URL.");
+    if (/\.fbx$/i.test(main.name)) {
+      const object = await new FBXLoader(manager).loadAsync(url);
+      this.root.clear(); this.mixer?.stopAllAction(); this.mixer = undefined; this.actions = []; this.activeAction = undefined;
+      this.model = object; this.bones.clear(); this.boneAliases.clear(); this.stateIndex.clear(); this.baseRotations.clear(); this.morphTargets = []; this.blinkTargets = [];
+      this.root.add(object); this.indexBones(object); this.indexMouthMorphs(object); this.fit(object);
+      this.capabilities = { loaded: true, hasRig: this.bones.size > 0, hasAnimations: object.animations.length > 0, hasFacialMorphs: this.morphTargets.length > 0, animationCount: object.animations.length, boneMap: {} };
+      object.animations.forEach((clip, i) => { const n = clip.name.toLowerCase(); if (!this.stateIndex.has("idle") && /idle|breath|stand|rest/.test(n)) this.stateIndex.set("idle", i); if (!this.stateIndex.has("walk") && /walk|walking|locomotion/.test(n)) this.stateIndex.set("walk", i); if (!this.stateIndex.has("run") && /run|jog|sprint/.test(n)) this.stateIndex.set("run", i); if (!this.stateIndex.has("gesture") && /wave|gesture|greet|point|clap/.test(n)) this.stateIndex.set("gesture", i); });
+      for (const key of ["head","neck","spine","leftArm","rightArm","leftForeArm","rightForeArm","leftHand","rightHand","leftUpLeg","rightUpLeg","leftLeg","rightLeg","leftFoot","rightFoot","leftEye","rightEye"]) this.capabilities.boneMap[key] = !!this.boneAliases.get(key);
+      if (object.animations.length) { this.mixer = new THREE.AnimationMixer(object); this.actions = object.animations.map((clip) => this.mixer!.clipAction(clip)); this.idleClipIndex = this.actions.findIndex((a) => /idle|breath|stand|rest/i.test(a.getClip().name)); if (this.idleClipIndex >= 0) this.playAnimation(this.idleClipIndex); }
+      return this.getCapabilities();
+    }
+    const loader = new GLTFLoader(manager);
     const gltf = await loader.loadAsync(url);
     this.root.clear(); this.mixer?.stopAllAction(); this.mixer = undefined; this.actions = []; this.activeAction = undefined;
     this.talking = false; this.talkTime = 0; this.idleTime = 0; this.idleClipIndex = -1; this.state = "idle";
