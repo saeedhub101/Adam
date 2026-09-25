@@ -60,6 +60,8 @@ jobs:
           if ($config.app.windows[0].skipTaskbar -ne $true) { throw "Skip-taskbar requirement missing." }
           if (-not (Test-Path "src-tauri/windows/hooks.nsh")) { throw "NSIS hook file missing." }
           if (-not (Test-Path "src-tauri/windows/fragments/cleanup.wxs")) { throw "MSI cleanup fragment file missing." }
+          if (-not (Test-Path "src/lib/scene.ts")) { throw "Three.js scene module missing." }
+          if (-not (Test-Path "src/App.svelte")) { throw "Desktop UI module missing." }
       - name: Verify Windows installers
         shell: pwsh
         run: |
@@ -97,6 +99,8 @@ jobs:
           $p = Start-Process -FilePath $adamExe.FullName -PassThru
           Start-Sleep -Seconds 5
           if ($p.HasExited) { throw "Adam exited during NSIS runtime smoke test." }
+          $p.Refresh()
+          if ($p.MainWindowHandle -eq 0) { Write-Warning "Adam process is alive but exposes no native main window handle in this CI session." }
           Stop-Adam
 
           $uninstall = Get-ChildItem $env:LOCALAPPDATA -Filter "uninstall.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -115,6 +119,8 @@ jobs:
           $p = Start-Process -FilePath $adamExe.FullName -PassThru
           Start-Sleep -Seconds 5
           if ($p.HasExited) { throw "Adam exited during MSI runtime smoke test." }
+          $p.Refresh()
+          if ($p.MainWindowHandle -eq 0) { Write-Warning "Adam process is alive but exposes no native main window handle in this CI session." }
           Stop-Adam
 
           $product = Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -eq "Adam" } | Select-Object -First 1
@@ -126,6 +132,7 @@ jobs:
           Stop-Adam
           Assert-NoAdamData
           Write-Host "Windows installer runtime smoke test passed for NSIS and MSI."
+          Write-Host "Phase 0/1 packaging, launch, persistence and uninstall gates passed."
       - uses: actions/upload-artifact@v4
         with:
           name: Adam-Windows-Installer
