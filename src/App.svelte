@@ -247,10 +247,10 @@
   <canvas bind:this={canvas}></canvas>
   <div class="bubble">{t(lang, "idle")}</div>
   {#if showMenu}
-    <div class="menu">
+    <div class="menu" onpointerdown={(e) => e.stopPropagation()} onpointermove={(e) => e.stopPropagation()}>
       <button onclick={chooseCharacter}>{t(lang,"changeCharacter")}</button>
       {#if characterError}<div class="error">{characterError}</div>{/if}
-      <div class="capabilities">{capabilities.loaded ? `Rig: ${capabilities.hasRig ? "yes" : "no"} · Animations: ${capabilities.animationCount ?? 0} · Face: ${capabilities.hasFacialMorphs ? "yes" : "no"}` : "Loading character…"}</div>
+      <div class="capabilities">{capabilities.loaded ? `Rig: ${capabilities.hasRig ? "yes" : "no"} · Animations: ${capabilities.animationCount ?? 0} · Face: ${capabilities.hasFacialMorphs ? "yes" : "no"} · Bones: ${Object.values(capabilities.boneMap ?? {}).filter(Boolean).length}/17` : "Loading character…"}</div>
       <div class="animation-panel">
         <select bind:value={animationState} onchange={() => scene?.setState(animationState)}><option value="idle">Idle</option><option value="walk">Walk</option><option value="run">Run</option><option value="gesture">Gesture</option></select>
         {#if animationNames.length}<small>{animationNames.join(" · ")}</small>{/if}
