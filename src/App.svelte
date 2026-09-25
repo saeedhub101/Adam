@@ -171,6 +171,22 @@
     if (!inputOverride) chatInput = "";
     chatBusy = true;
     try {
+      let agentResult = await invoke<any | null>("agent_route", { input, language: lang });
+      if (agentResult) {
+        if (agentResult.requires_confirmation) {
+          const approved = window.confirm(agentResult.message + (lang === "ar" ? "\n\nالسماح بهذه العملية لهذه الجلسة؟" : "\n\nAllow this action for this session?"));
+          if (approved) {
+            await setPermission(agentResult.intent === "computer.open" ? "computer.open" : agentResult.intent, "session");
+            agentResult = await invoke<any | null>("agent_route", { input, language: lang });
+          }
+        }
+        if (agentResult) {
+          chatReply = agentResult.message;
+          speak(agentResult.message);
+          if (agentResult.action === "opened" || agentResult.action === "rejected" || agentResult.action === "blocked") return;
+        }
+      }
+
       const localReply = await invoke<string | null>("local_brain_execute", { input, language: lang });
       if (localReply) {
         chatReply = localReply;
