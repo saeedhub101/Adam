@@ -11,6 +11,10 @@ export async function listMemories(limit = 50): Promise<Memory[]> {
   return rows.map(([id, content, kind, createdAt]) => ({ id, content, kind, createdAt }));
 }
 
+export async function updateMemory(id: number, content: string, kind = "note"): Promise<void> { await invoke("memory_update", { id, content, kind }); }
+
+export async function deleteMemory(id: number): Promise<void> { await invoke("memory_delete", { id }); }
+
 export async function searchMemories(query: string, limit = 20): Promise<Memory[]> {
   const rows = await invoke<[number,string,string,string][]>("memory_search", { query, limit });
   return rows.map(([id, content, kind, createdAt]) => ({ id, content, kind, createdAt }));
