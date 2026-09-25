@@ -1,6 +1,5 @@
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use image::{ImageBuffer, Rgba};
-use std::ptr::null_mut;
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct CaptureResult {
@@ -13,20 +12,17 @@ pub struct CaptureResult {
 pub fn capture_desktop() -> Result<CaptureResult, String> {
     use windows::Win32::Foundation::{HWND, RECT};
     use windows::Win32::Graphics::Gdi::*;
-    use windows::Win32::UI::WindowsAndMessaging::GetDesktopWindow;
+    use windows::Win32::UI::WindowsAndMessaging::{GetDesktopWindow, GetSystemMetrics, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN};
 
     unsafe {
         let hwnd: HWND = GetDesktopWindow();
         let hdc = GetDC(hwnd);
         if hdc.0 == 0 { return Err("Unable to acquire desktop DC".into()); }
 
-        let mut rect = RECT::default();
-        if GetClientRect(hwnd, &mut rect).is_err() {
-            let _ = ReleaseDC(hwnd, hdc);
-            return Err("Unable to determine desktop size".into());
-        }
-        let width = (rect.right - rect.left).max(1) as u32;
-        let height = (rect.bottom - rect.top).max(1) as u32;
+        let left = GetSystemMetrics(SM_XVIRTUALSCREEN);
+        let top = GetSystemMetrics(SM_YVIRTUALSCREEN);
+        let width = GetSystemMetrics(SM_CXVIRTUALSCREEN).max(1) as u32;
+        let height = GetSystemMetrics(SM_CYVIRTUALSCREEN).max(1) as u32;
 
         let mem = CreateCompatibleDC(hdc);
         if mem.0 == 0 {
@@ -40,7 +36,7 @@ pub fn capture_desktop() -> Result<CaptureResult, String> {
             return Err("Unable to create capture bitmap".into());
         }
         let old = SelectObject(mem, bitmap);
-        let copied = BitBlt(mem, 0, 0, width as i32, height as i32, hdc, 0, 0, SRCCOPY | CAPTUREBLT).is_ok();
+        let copied = BitBlt(mem, 0, 0, width as i32, height as i32, hdc, left, top, SRCCOPY | CAPTUREBLT).is_ok();
         if !copied {
             let _ = SelectObject(mem, old);
             let _ = DeleteObject(bitmap);
