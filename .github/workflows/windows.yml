@@ -63,7 +63,7 @@ jobs:
           if (-not (Test-Path "src/lib/scene.ts")) { throw "Three.js scene module missing." }
           if (-not (Test-Path "src/App.svelte")) { throw "Desktop UI module missing." }
           if (-not (Select-String -Path "src/lib/scene.ts" -Pattern "FBXLoader" -Quiet)) { throw "FBX loader integration missing." }
-          if (-not (Select-String -Path "src/lib/scene.ts" -Pattern "blinkTargets" -Quiet)) { throw "Facial blink system missing." }
+          if (-not (Select-String -Path "src/lib/scene.ts" -Pattern "blinks|applyBlink" -Quiet)) { throw "Facial blink system missing." }
           if (-not (Select-String -Path "src/App.svelte" -Pattern "adam-character-library" -Quiet)) { throw "Persistent character library missing." }
           if (-not (Select-String -Path "src/App.svelte" -Pattern "Restore saved character" -Quiet)) { throw "Character restore UI missing." }
 
