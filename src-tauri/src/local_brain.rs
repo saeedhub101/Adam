@@ -43,11 +43,21 @@ pub fn detect_intent(input: &str) -> Intent {
     {
         return Intent::Note;
     }
-    if q.contains("memory") || q.contains("remember") || q.contains("what did i save") || q.contains("what do you remember") || q.contains("ذاكرة") || q.contains("تذكر")
+    if q.contains("memory")
+        || q.contains("remember")
+        || q.contains("what did i save")
+        || q.contains("what do you remember")
+        || q.contains("ذاكرة")
+        || q.contains("تذكر")
     {
         return Intent::Memory;
     }
-    if q.contains("time") || q.contains("what time") || q.contains("current time") || q.contains("الوقت") || q.contains("الساعة") || q.contains("كم الساعة")
+    if q.contains("time")
+        || q.contains("what time")
+        || q.contains("current time")
+        || q.contains("الوقت")
+        || q.contains("الساعة")
+        || q.contains("كم الساعة")
     {
         return Intent::Time;
     }
@@ -59,7 +69,16 @@ pub fn detect_intent(input: &str) -> Intent {
     }
     Intent::Unknown
 }
-fn normalize(input: &str) -> String { input.trim().to_lowercase().replace("أ", "ا").replace("إ", "ا").replace("آ", "ا").replace("ة", "ه").replace("ى", "ي") }
+fn normalize(input: &str) -> String {
+    input
+        .trim()
+        .to_lowercase()
+        .replace("أ", "ا")
+        .replace("إ", "ا")
+        .replace("آ", "ا")
+        .replace("ة", "ه")
+        .replace("ى", "ي")
+}
 fn is_ar(language: &str) -> bool {
     language.eq_ignore_ascii_case("ar")
 }
@@ -87,9 +106,18 @@ fn extract_after_any<'a>(input: &'a str, markers: &[&str]) -> &'a str {
 fn parse_due(input: &str) -> DateTime<Local> {
     let q = input.to_lowercase();
     let now = Local::now();
-    if q.contains("in 10 minutes") { return now + Duration::minutes(10); }
-    if q.contains("in 30 minutes") { return now + Duration::minutes(30); }
-    if q.contains("in an hour") || q.contains("in 1 hour") || q.contains("بعد ساعه") { return now + Duration::hours(1); }
+    if q.contains("in 10 minutes") {
+        return now + Duration::minutes(10);
+    }
+    if q.contains("in 30 minutes") {
+        return now + Duration::minutes(30);
+    }
+    if q.contains("in an hour")
+        || q.contains("in 1 hour")
+        || q.contains("بعد ساعه")
+    {
+        return now + Duration::hours(1);
+    }
     if q.contains("tomorrow") || q.contains("غدا") || q.contains("غداً") {
         return now + Duration::days(1);
     }
@@ -314,9 +342,13 @@ mod tests {
         assert_eq!(detect_intent("schedule dentist tomorrow"), Intent::Calendar)
     }
     #[test]
-    fn relative_time_is_reminder() { assert_eq!(detect_intent("remind me in 30 minutes"), Intent::Reminder) }
+    fn relative_time_is_reminder() {
+        assert_eq!(detect_intent("remind me in 30 minutes"), Intent::Reminder)
+    }
     #[test]
-    fn appointment_is_calendar() { assert_eq!(detect_intent("add an appointment tomorrow"), Intent::Calendar) }
+    fn appointment_is_calendar() {
+        assert_eq!(detect_intent("add an appointment tomorrow"), Intent::Calendar)
+    }
     #[test]
     fn unknown() {
         assert_eq!(detect_intent("explain quantum tunneling"), Intent::Unknown)
