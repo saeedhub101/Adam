@@ -15,6 +15,9 @@ export class AdamScene {
   private bones = new Map<string, THREE.Object3D>();
   private idleTime = 0;
   private baseRotations = new Map<string, THREE.Euler>();
+  private morphTargets: Array<{mesh: THREE.Mesh; index: number}> = [];
+  private talking = false;
+  private talkTime = 0;
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
@@ -39,11 +42,14 @@ export class AdamScene {
     this.model = undefined;
     this.bones.clear();
     this.baseRotations.clear();
+    this.morphTargets = [];
+    this.talking = false;
     try {
       const gltf = await this.loader.loadAsync(url);
       this.model = gltf.scene;
       this.root.add(gltf.scene);
       this.indexBones(gltf.scene);
+      this.indexMouthMorphs(gltf.scene);
       this.fit(gltf.scene);
       if (gltf.animations.length) {
         this.mixer = new THREE.AnimationMixer(gltf.scene);
@@ -69,6 +75,27 @@ export class AdamScene {
   }
 
   listAnimations() { return this.actions.length; }
+
+  setTalking(talking: boolean) { this.talking = talking; }
+
+  private indexMouthMorphs(obj: THREE.Object3D) {
+    obj.traverse((child) => {
+      if (!(child instanceof THREE.Mesh) || !child.morphTargetDictionary || !child.morphTargetInfluences) return;
+      for (const [name, index] of Object.entries(child.morphTargetDictionary)) {
+        if (/viseme|mouth|jaw|open|aa|ah|speech|talk/i.test(name)) this.morphTargets.push({ mesh: child, index });
+      }
+    });
+  }
+
+  private applyTalking(dt: number) {
+    if (!this.morphTargets.length) return;
+    this.talkTime += dt;
+    const amount = this.talking ? (0.18 + Math.max(0, Math.sin(this.talkTime * 17)) * 0.5) : 0;
+    for (const target of this.morphTargets) {
+      const current = target.mesh.morphTargetInfluences?.[target.index] ?? 0;
+      if (target.mesh.morphTargetInfluences) target.mesh.morphTargetInfluences[target.index] = THREE.MathUtils.lerp(current, amount, Math.min(1, dt * 12));
+    }
+  }
 
   playAnimation(index: number) {
     if (!this.actions.length) return;
@@ -153,6 +180,7 @@ export class AdamScene {
     const dt = Math.min(this.clock.getDelta(), .05);
     this.mixer?.update(dt);
     this.applyProceduralIdle(dt);
+    this.applyTalking(dt);
     this.root.rotation.y = Math.sin(performance.now() * .0007) * .025;
     this.renderer.render(this.scene, this.camera);
   };
