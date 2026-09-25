@@ -116,6 +116,7 @@ fn grant_webview_media_permissions(window: &WebviewWindow) -> Result<(), String>
             let mut token = 0i64;
             unsafe { core.add_PermissionRequested(&handler, &mut token) }
                 .map_err(|e| format!("WebView2 permission handler registration failed: {e:?}"))?;
+            Ok(())
         })
         .map_err(|e| e.to_string())
 }
