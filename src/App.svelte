@@ -6,6 +6,7 @@
   import { addMemory, listMemories, searchMemories, updateMemory, deleteMemory, type Memory } from "./lib/memory";
   import { addReminder, listReminders, completeReminder, type Reminder } from "./lib/reminders";
   import { cloudChatStream, hasApiKey, saveApiKey, deleteApiKey, type ChatMessage } from "./lib/cloud";
+  import { invoke } from "@tauri-apps/api/core";
   import { LocalWhisperVoice } from "./lib/voice";
   import { listPermissions, setPermission, listActivity, emergencyStop, type Permission, type Activity } from "./lib/permissions";
 
@@ -36,16 +37,17 @@
   let transcript = "";
   let recognition: any;
   let safetyOpen = false; let permissions: Permission[] = []; let activity: Activity[] = [];
-  let localVoice: LocalWhisperVoice | undefined; let whisperReady = false; let voiceBusy = false;
+  let localVoice: LocalWhisperVoice | undefined; let whisperReady = false; let voiceBusy = false; let whisperError = "";
 
   async function setupLocalVoice() {
-    if (!localVoice) localVoice = new LocalWhisperVoice((status) => { whisperReady = status === "ready"; voiceBusy = status === "loading"; });
+    if (!localVoice) localVoice = new LocalWhisperVoice((status) => { whisperReady = status === "ready"; voiceBusy = status === "loading"; whisperError = localVoice?.error ?? ""; });
   }
 
   async function toggleLocalVoice() {
     await setupLocalVoice();
     if (!localVoice) return;
     if (localVoice.listening) { localVoice.stop(); return; }
+    (window as any).speechSynthesis?.cancel(); scene?.setTalking(false);
     await localVoice.start(lang === "ar" ? "ar" : "en", async (text) => { transcript = text; await sendChat(text); });
   }
 
@@ -215,7 +217,7 @@
           <button on:click|stopPropagation={saveCloudConfig}>Save AI settings</button>{#if !cloudReady}<input type="password" placeholder="API key" bind:value={cloudKey} /><button on:click|stopPropagation={saveCloudKey}>Save key</button>{:else}<input placeholder={lang === "ar" ? "اكتب لآدم" : "Message Adam"} bind:value={chatInput} on:keydown={(e) => e.key === "Enter" && sendChat()} /><button disabled={chatBusy} on:click|stopPropagation={() => sendChat()}>{chatBusy ? "..." : "Send"}</button><button on:click|stopPropagation={async () => { await deleteApiKey(); cloudReady = false; }}>Remove key</button>{/if}{#if chatReply}<div class="chat-reply">{chatReply}</div>{/if}</div>{/if}
       <button class:active={listening} on:click|stopPropagation={toggleVoice}>{listening ? "● " : "🎙 "} {listening ? (lang === "ar" ? "استماع..." : "Listening...") : (lang === "ar" ? "الميكروفون" : "Microphone")}</button>
       {#if transcript}<div class="transcript">{transcript}</div>{/if}
-      <button class:active={voiceBusy} on:click|stopPropagation={toggleLocalVoice}>{voiceBusy ? "Loading Whisper…" : whisperReady ? "Local Whisper" : "Load Local Whisper"}</button>
+      <button class:active={voiceBusy} on:click|stopPropagation={toggleLocalVoice}>{voiceBusy ? "Loading Whisper…" : whisperReady ? (localVoice?.listening ? "Stop Local Whisper" : "Local Whisper") : "Load Local Whisper"}</button>
       <div class="memory-panel">
         <button on:click|stopPropagation={async () => { reminderOpen = !reminderOpen; if (reminderOpen) await refreshReminders(); }}>
           {lang === "ar" ? "تذكيرات" : "Reminders"}
