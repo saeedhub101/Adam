@@ -89,7 +89,14 @@ jobs:
               (Join-Path $env:LOCALAPPDATA "com.saeedhub.adam"),
               (Join-Path $env:LOCALAPPDATA "Adam")
             )
-            foreach ($p in $paths) { if (Test-Path $p) { throw "Adam user-data remained after uninstall: $p" } }
+            for ($attempt = 1; $attempt -le 10; $attempt++) {
+              $remaining = @($paths | Where-Object { Test-Path $_ })
+              if ($remaining.Count -eq 0) { return }
+              Start-Sleep -Seconds 1
+            }
+            foreach ($p in $paths) {
+              if (Test-Path $p) { throw "Adam user-data remained after uninstall: $p" }
+            }
           }
 
           Start-Process -FilePath $nsis -ArgumentList "/S" -Wait
