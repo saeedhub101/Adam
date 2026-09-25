@@ -147,6 +147,7 @@ export class AdamScene {
     if (!url) throw new Error("Unable to create a local model URL.");
     const gltf = await loader.loadAsync(url);
     this.root.clear(); this.mixer?.stopAllAction(); this.mixer = undefined; this.actions = []; this.activeAction = undefined;
+    this.talking = false; this.talkTime = 0; this.idleTime = 0; this.idleClipIndex = -1; this.state = "idle";
     this.model = gltf.scene; this.bones.clear(); this.boneAliases.clear(); this.stateIndex.clear(); this.baseRotations.clear(); this.morphTargets = [];
     this.root.add(gltf.scene); this.indexBones(gltf.scene); this.indexMouthMorphs(gltf.scene); this.fit(gltf.scene);
     this.capabilities = { loaded: true, hasRig: this.bones.size > 0, hasAnimations: gltf.animations.length > 0, hasFacialMorphs: this.morphTargets.length > 0, animationCount: gltf.animations.length, boneMap: {} };
