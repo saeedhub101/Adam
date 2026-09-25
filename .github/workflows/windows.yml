@@ -80,12 +80,18 @@ jobs:
           if ($config.bundle.windows.wix.componentRefs.Count -lt 3) { throw "MSI cleanup component references missing." }
           if ($config.app.windows[0].transparent -ne $true) { throw "Transparent desktop window requirement missing." }
           if ($config.app.windows[0].alwaysOnTop -ne $true) { throw "Always-on-top requirement missing." }
-          if ($config.app.windows[0].skipTaskbar -ne $true) { throw "Skip-taskbar requirement missing." }
+          if ($config.app.windows[0].skipTaskbar -ne $false) { throw "Taskbar icon visibility requirement missing." }
           if (-not (Test-Path "src-tauri/windows/hooks.nsh")) { throw "NSIS hook file missing." }
           if (-not (Test-Path "src-tauri/windows/fragments/cleanup.wxs")) { throw "MSI cleanup fragment file missing." }
           if (-not (Test-Path "src/lib/scene.ts")) { throw "Three.js scene module missing." }
           if (-not (Test-Path "src/App.svelte")) { throw "Desktop UI module missing." }
           if (-not (Select-String -Path "src/lib/scene.ts" -Pattern "FBXLoader" -Quiet)) { throw "FBX loader integration missing." }
+          if (-not (Select-String -Path "src/lib/scene.ts" -Pattern "getPreferredWindowSize" -Quiet)) { throw "Model-driven window sizing missing." }
+          if (-not (Select-String -Path "src/App.svelte" -Pattern "startDragging" -Quiet)) { throw "Native window dragging integration missing." }
+          if (-not (Select-String -Path "src/App.svelte" -Pattern "requestMicrophone" -Quiet)) { throw "Microphone diagnostics missing." }
+          if (-not (Select-String -Path "src/App.svelte" -Pattern "quickbar" -Quiet)) { throw "Desktop quick controls missing." }
+          if (-not (Select-String -Path "src-tauri/src/main.rs" -Pattern "TrayIconBuilder" -Quiet)) { throw "System tray integration missing." }
+          if (-not (Select-String -Path "src-tauri/src/main.rs" -Pattern "windows_subsystem" -Quiet)) { throw "Windows GUI subsystem configuration missing." }
           if (-not (Select-String -Path "src/lib/scene.ts" -Pattern "blinks|applyBlink" -Quiet)) { throw "Facial blink system missing." }
           if (-not (Select-String -Path "src/App.svelte" -Pattern "adam-character-library" -Quiet)) { throw "Persistent character library missing." }
           if (-not (Select-String -Path "src/App.svelte" -Pattern "Restore saved character" -Quiet)) { throw "Character restore UI missing." }
