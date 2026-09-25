@@ -17,3 +17,5 @@ jobs:
         with:
           name: Adam-Windows-Installer
           path: src-tauri/target/release/bundle/nsis/*.exe
+
+# CI trigger after local-first brain integration
