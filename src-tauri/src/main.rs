@@ -8,6 +8,7 @@ mod local_brain;
 mod memory;
 mod permissions;
 mod production;
+mod screen;
 mod reminders;
 
 use serde::{Deserialize, Serialize};
@@ -251,6 +252,8 @@ fn main() {
             agent_route,
             computer_open,
             production_diagnostics,
+            screen_capture,
+            vision_analyze,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Adam");
@@ -534,4 +537,21 @@ fn production_diagnostics(app: tauri::AppHandle) -> Result<production::RuntimeDi
     let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     production::verify_data_dir(&data_dir)?;
     Ok(production::diagnostics(data_dir, env!("CARGO_PKG_VERSION")))
+}
+
+
+#[tauri::command]
+fn screen_capture(app: tauri::AppHandle) -> Result<screen::CaptureResult, String> {
+    let path = memory_path(&app)?;
+    if !permissions::allowed(&path, "screen.capture")? {
+        return Err("screen.capture permission is not enabled".into());
+    }
+    let result = screen::capture_desktop()?;
+    permissions::add_log(&path, "screen.capture", &format!("{}x{}", result.width, result.height))?;
+    Ok(result)
+}
+
+#[tauri::command]
+async fn vision_analyze(base_url: String, model: String, prompt: String, png_base64: String) -> Result<ai::VisionResult, String> {
+    ai::vision_analyze(&base_url, &model, &prompt, &png_base64).await
 }
