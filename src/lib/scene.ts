@@ -274,7 +274,9 @@ export class AdamScene {
     const next = this.actions[Math.max(0, Math.min(index, this.actions.length - 1))];
     if (this.activeAction === next) return;
     this.activeAction?.fadeOut(0.25);
-    next.reset().setEffectiveWeight(1).setEffectiveTimeScale(1).fadeIn(0.25).play();
+    next.reset().setEffectiveWeight(1).setEffectiveTimeScale(1).fadeIn(0.25);
+    if (this.state === "gesture") next.setLoop(THREE.LoopOnce, 1).clampWhenFinished = true;
+    next.play();
     this.activeAction = next;
     this.idleTime = 0;
   }
@@ -393,7 +395,15 @@ export class AdamScene {
     this.applyProceduralIdle(dt);
     this.applyTalking(dt);
     this.applyBlink(dt);
-    if (this.gestureQueue.length && !this.activeAction) this.playAnimationByName(this.gestureQueue.shift()!);
+    if (this.state === "gesture" && this.activeAction && !this.activeAction.isRunning()) {
+      this.activeAction = undefined;
+      this.state = "idle";
+      if (this.idleClipIndex >= 0) this.playAnimation(this.idleClipIndex);
+    }
+    if (this.gestureQueue.length && (!this.activeAction || this.state === "idle")) {
+      const nextGesture = this.gestureQueue.shift();
+      if (nextGesture) { this.state = "gesture"; this.playAnimationByName(nextGesture); }
+    }
     if (!this.contextLost) this.renderer.render(this.scene, this.camera);
   };
 }
