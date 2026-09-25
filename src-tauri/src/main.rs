@@ -89,15 +89,18 @@ fn write_state(app: &tauri::AppHandle, state: &WindowState) -> Result<(), String
 #[cfg(target_os = "windows")]
 fn grant_webview_media_permissions(window: &WebviewWindow) -> Result<(), String> {
     window
-        .with_webview(|webview| -> Result<(), String> {
+        .with_webview(|webview| {
             use webview2_com::Microsoft::Web::WebView2::Win32::{
                 COREWEBVIEW2_PERMISSION_KIND, COREWEBVIEW2_PERMISSION_KIND_CAMERA,
                 COREWEBVIEW2_PERMISSION_KIND_MICROPHONE, COREWEBVIEW2_PERMISSION_STATE_ALLOW,
             };
             use webview2_com::PermissionRequestedEventHandler;
 
-            let core = unsafe { webview.controller().CoreWebView2() }
-                .map_err(|e| format!("WebView2 CoreWebView2 unavailable: {e:?}"))?;
+            let core = match (unsafe { webview.controller().CoreWebView2() }) {
+                Ok(core) => core,
+                Err(_) => return,
+            };
+
             let handler = PermissionRequestedEventHandler::create(Box::new(
                 |_sender, args| {
                     let Some(args) = args else { return Ok(()); };
@@ -113,10 +116,9 @@ fn grant_webview_media_permissions(window: &WebviewWindow) -> Result<(), String>
                     Ok(())
                 },
             ));
+
             let mut token = 0i64;
-            unsafe { core.add_PermissionRequested(&handler, &mut token) }
-                .map_err(|e| format!("WebView2 permission handler registration failed: {e:?}"))?;
-            Ok(())
+            let _ = unsafe { core.add_PermissionRequested(&handler, &mut token) };
         })
         .map_err(|e| e.to_string())
 }
