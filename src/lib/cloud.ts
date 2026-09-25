@@ -8,9 +8,11 @@ export async function deleteApiKey(){await invoke("cloud_delete_key");}
 export async function cloudChat(config:CloudConfig,messages:ChatMessage[]):Promise<string>{return await invoke<string>("cloud_chat",{baseUrl:config.baseUrl,model:config.model,messages});}
 
 
-export async function cloudChatStream(config:CloudConfig,messages:ChatMessage[],onDelta:(delta:string)=>void):Promise<string>{
+export async function cloudTestConnection(baseUrl:string):Promise<string>{ return await invoke<string>("cloud_test_connection",{baseUrl}); }
+export async function cloudCancel(requestId:string):Promise<void>{ await invoke("cloud_cancel",{requestId}); }
+export async function cloudChatStream(config:CloudConfig,messages:ChatMessage[],onDelta:(delta:string)=>void,requestId?:string):Promise<string>{
  if(!config.baseUrl.trim() || !config.model.trim()) throw new Error("Provider URL and model are required.");
- const id=crypto.randomUUID();
+ const id=requestId || crypto.randomUUID();
  const unlisten=await listen<string>(`adam://cloud-chunk/${id}`,(event)=>onDelta(event.payload));
  try { return await invoke<string>("cloud_chat_stream",{requestId:id,baseUrl:config.baseUrl,model:config.model,messages}); }
  finally { await unlisten(); }
