@@ -17,3 +17,30 @@ export async function savePosition(x: number, y: number) {
 export async function loadPosition(): Promise<WindowState | null> {
   return await invoke("load_position");
 }
+
+export type CaptureResult = { width: number; height: number; png_base64: string };
+export type ComputerWindow = [number, string];
+
+export async function captureDesktop(): Promise<CaptureResult> {
+  return await invoke("screen_capture");
+}
+
+export async function analyzeScreen(baseUrl: string, model: string, prompt: string, pngBase64: string): Promise<{ text: string }> {
+  return await invoke("vision_analyze", { baseUrl, model, prompt, pngBase64 });
+}
+
+export async function listComputerWindows(): Promise<ComputerWindow[]> {
+  return await invoke("computer_windows");
+}
+
+export async function computerClick(x: number, y: number, double = false) {
+  await invoke("computer_click", { x: Math.round(x), y: Math.round(y), double });
+}
+
+export async function computerType(value: string) {
+  await invoke("computer_type", { text: value });
+}
+
+export async function computerKey(virtualKey: number) {
+  await invoke("computer_key", { virtualKey });
+}
