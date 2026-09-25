@@ -22,24 +22,34 @@
         "resizable": false,
         "skipTaskbar": true,
         "shadow": false,
-        "visible": true
+        "visible": true,
+        "center": true,
+        "backgroundColor": "#00000000",
+        "backgroundThrottling": "disabled"
       }
     ]
   },
   "bundle": {
     "active": true,
-    "targets": [
-      "nsis",
-      "msi"
-    ],
+    "targets": ["nsis", "msi"],
+    "publisher": "SaeedHub",
+    "homepage": "https://github.com/saeedhub101/Adam",
+    "shortDescription": "Adam Windows AI desktop companion",
     "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      },
       "nsis": {
         "installMode": "currentUser",
-        "displayLanguageSelector": true
+        "displayLanguageSelector": true,
+        "languages": ["English"],
+        "installerHooks": "./windows/hooks.nsh"
+      },
+      "wix": {
+        "upgradeCode": "6c4c8e4f-3b5d-4c72-9a9a-0b4c5c5c8d2e"
       }
     },
-    "icon": [
-      "icons/icon.ico"
-    ]
+    "icon": ["icons/icon.ico"]
   }
 }
