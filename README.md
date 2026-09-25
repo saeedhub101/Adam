@@ -15,8 +15,8 @@ Adam is a Windows desktop AI companion.
 
 ## Phase status
 
-- **Phase 0 — Foundation:** implementation complete; CI acceptance requires frontend check/build, Rust tests, Tauri production build, and verified NSIS + MSI artifacts.
-- **Phase 1 — Character on desktop:** implemented with Three.js/WebGL, transparent always-on-top surface, fallback avatar, GLB/GLTF picker, size and position persistence.
+- **Phase 0 — Foundation:** implementation complete; CI now validates formatting, foundation files, packaging configuration, NSIS + MSI artifacts, and generates/commits `package-lock.json` for reproducible frontend installation.
+- **Phase 1 — Character on desktop:** implementation complete at source level: transparent always-on-top surface, safe fallback avatar, GLB/GLTF picker, persistent size/position, multi-monitor clamping, stable click-through toggle, and generic rig/capability detection.
 - **Phase 2 — Animation:** implemented with animation-clip detection, cross-fades, bone-aware procedural idle motion and fallback idle behavior.
 - **Phase 3 — Voice:** bilingual English/Arabic speech recognition and speech synthesis are integrated through WebView voice APIs, with microphone state and transcript display.
 - **Phase 4 — Local Brain & Memory:** local routing, SQLite memory/reminders/calendar and offline execution paths are implemented.
@@ -36,7 +36,7 @@ The Windows workflow at `.github/workflows/windows.yml` verifies:
 6. Both NSIS (`.exe`) and MSI (`.msi`) installers are present.
 7. Missing installer artifacts fail CI instead of being silently accepted.
 
-A real Windows GUI launch/install smoke test is intentionally separate from the source/CI acceptance checks; CI does not claim to have verified an interactive desktop launch unless such a test is actually executed.
+A real Windows GUI launch/install smoke test remains a separate runtime gate; CI does not claim an interactive desktop launch was verified unless that test is actually executed.
 
 ## Requirements
 
@@ -74,7 +74,7 @@ Voice, local memory/calendar, cloud routing, permissions and computer-control ca
 
 ## Reproducibility note
 
-The current repository does not yet contain a committed `package-lock.json`. CI therefore uses `npm install`, not `npm ci`. A lockfile should be introduced before claiming fully lockfile-reproducible frontend dependency installation.
+CI now generates `package-lock.json` with `npm install --package-lock-only` and commits it when missing or changed, so subsequent dependency installation can be reproduced from the committed lockfile.
 
 ## Security and release note
 
