@@ -6,11 +6,22 @@ pub enum Intent { Greeting, Time, Memory, Reminder, Note, Unknown }
 pub fn detect_intent(input: &str) -> Intent {
     let q = input.trim().to_lowercase();
     if q.is_empty() { return Intent::Unknown; }
-    if ["hello","hi","hey","مرحبا","اهلا","أهلا","السلام عليكم"].iter().any(|x| q.contains(x)) { return Intent::Greeting; }
-    if q.contains("time") || q.contains("الوقت") || q.contains("الساعة") || q.contains("كم الساعة") { return Intent::Time; }
-    if q.contains("memory") || q.contains("remember") || q.contains("ذاكرة") || q.contains("تذكر") { return Intent::Memory; }
-    if q.contains("remind") || q.contains("reminder") || q.contains("تذكير") || q.contains("ذكرني") { return Intent::Reminder; }
-    if q.contains("note") || q.contains("ملاحظة") || q.contains("احفظ") || q.contains("سجل") { return Intent::Note; }
+
+    if q.contains("remind") || q.contains("reminder") || q.contains("تذكير") || q.contains("ذكرني") {
+        return Intent::Reminder;
+    }
+    if q.contains("note") || q.contains("ملاحظة") || q.contains("احفظ") || q.contains("سجل") || q.contains("save this") {
+        return Intent::Note;
+    }
+    if q.contains("memory") || q.contains("remember") || q.contains("ذاكرة") || q.contains("تذكر") {
+        return Intent::Memory;
+    }
+    if q.contains("time") || q.contains("الوقت") || q.contains("الساعة") || q.contains("كم الساعة") {
+        return Intent::Time;
+    }
+    if ["hello","hi","hey","مرحبا","اهلا","أهلا","السلام عليكم"].iter().any(|x| q.contains(x)) {
+        return Intent::Greeting;
+    }
     Intent::Unknown
 }
 
