@@ -10,7 +10,7 @@ mod permissions;
 mod reminders;
 
 use serde::{Deserialize, Serialize};
-use std::{fs, path::PathBuf};
+use std::{fs, path::PathBuf, thread, time::Duration};
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewWindow};
