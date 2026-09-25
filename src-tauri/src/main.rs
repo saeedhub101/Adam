@@ -89,7 +89,7 @@ fn write_state(app: &tauri::AppHandle, state: &WindowState) -> Result<(), String
 #[cfg(target_os = "windows")]
 fn grant_webview_media_permissions(window: &WebviewWindow) -> Result<(), String> {
     window
-        .with_webview(|webview| {
+        .with_webview(|webview| -> Result<(), String> {
             use webview2_com::Microsoft::Web::WebView2::Win32::{
                 COREWEBVIEW2_PERMISSION_KIND, COREWEBVIEW2_PERMISSION_KIND_CAMERA,
                 COREWEBVIEW2_PERMISSION_KIND_MICROPHONE, COREWEBVIEW2_PERMISSION_STATE_ALLOW,
