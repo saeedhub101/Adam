@@ -1,8 +1,61 @@
 # Adam Architecture
 
-Phase 0 establishes Tauri v2 + Rust + WebView2 + Svelte/TypeScript/Vite.
+## Phase 0 — Foundation
+
+Adam's foundation is a Windows desktop application built around:
+
+- **Tauri v2** for the desktop shell and native bridge.
+- **Rust** for native commands, persistence and protected credential access.
+- **WebView2** for the Windows web runtime.
+- **Svelte 5 + TypeScript + Vite** for the UI.
+- **Three.js / WebGL** for the character rendering layer.
+- **SQLite** for local application data.
+- **Windows Credential Manager** through the Rust keyring integration for cloud API keys.
+
+### Supported target
+
+- Windows 10 22H2 x64
+- Windows 11 x64
+
+### Native persistence
+
+The Rust backend creates the application data directory and initializes the SQLite database. Current foundation data includes memory, calendar and permissions tables. Window position is persisted separately and is clamped to the active monitor bounds.
+
+### Native command boundary
+
+The Tauri command layer is the only frontend-to-native bridge. Phase 0/1 intentionally does not provide unrestricted shell execution, administrator elevation or computer-control commands.
+
+### Build acceptance
+
+The Windows CI workflow performs, in order:
+
+1. Foundation-file verification.
+2. `npm install`.
+3. `npm run check`.
+4. `npm run build`.
+5. `cargo test --manifest-path src-tauri/Cargo.toml`.
+6. `npm run tauri build`.
+7. Explicit verification that at least one NSIS `.exe` and one MSI `.msi` exist.
+8. Artifact upload with `if-no-files-found: error`.
+
+This separates source validation from actual installer production and prevents a green workflow from hiding missing installer artifacts.
+
+### Runtime verification boundary
+
+CI source/build checks do not by themselves prove that a Windows installer was interactively installed and launched. A real Windows GUI smoke test must be reported separately when executed.
+
+### Reproducibility boundary
+
+The repository currently has no committed `package-lock.json`, so CI uses `npm install`. Full lockfile-reproducible dependency installation remains a documented follow-up until a lockfile is committed.
+
+### Release signing boundary
+
+Windows code signing and publisher identity are intentionally outside the current Phase 0 acceptance gate. Current CI produces unsigned installers.
+
+## Phase 1 — Character on desktop
 
 Phase 1 adds the desktop character surface:
+
 - transparent always-on-top window
 - Three.js/WebGL renderer
 - default GLB asset slot with safe fallback avatar
@@ -11,13 +64,47 @@ Phase 1 adds the desktop character surface:
 - drag positioning
 - click-through API
 - persisted position
-- tray/close wiring is reserved for the next integration pass if the target environment lacks tray support
+- multi-monitor position clamping
 
-Safety boundaries for Phase 0/1:
-- no computer-control tools
-- no microphone
-- no cloud API
-- no shell execution
-- no admin elevation
+The final `adam.glb` asset is not required for the current foundation acceptance pass.
 
-Later phases add voice, local memory/calendar, cloud routing, permissions and computer control.
+## Phase 2 — Animation
+
+The animation layer:
+
+- detects imported animation clips
+- cross-fades between clips
+- indexes common character bones
+- applies procedural breathing/head/arm idle motion when no imported clip is active
+- supports generic GLB/GLTF rigs without requiring one fixed bone hierarchy
+
+## Phase 3 — Voice
+
+Voice capabilities include bilingual English/Arabic recognition and speech synthesis, microphone state, transcript handling, local model management and speech interruption behavior. Full offline model packaging and production-grade lip-sync/viseme coverage remain separate implementation concerns.
+
+## Phase 4 — Local Brain & Memory
+
+The local path uses SQLite-backed memory, reminders and calendar data. The intended routing is:
+
+`User → Local Brain → execute locally when understood → otherwise Cloud Brain → offline fallback if cloud is unavailable.`
+
+Local execution must be implemented through explicit native commands rather than generic text-only responses.
+
+## Phase 5 — Cloud Brain
+
+The cloud layer provides an OpenAI-compatible provider abstraction, protected API-key storage, streaming, persona context, provider/model configuration and offline fallback.
+
+## Safety boundaries
+
+Phase 0/1 do not include:
+
+- unrestricted computer control
+- arbitrary shell execution
+- administrator elevation
+- automatic destructive actions
+
+Permissions and controlled computer operations belong to later phases.
+
+## Asset boundary
+
+The production `adam.glb` character asset is intentionally excluded from the Phase 0 foundation gate so that missing art assets cannot mask infrastructure/build failures.
