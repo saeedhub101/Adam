@@ -48,6 +48,14 @@ pub fn complete(path: &Path, id: i64) -> Result<(), String> {
     Ok(())
 }
 
+pub fn snooze(path: &Path, id: i64, minutes: i64) -> Result<(), String> {
+    if !(1..=7200).contains(&minutes) { return Err("Snooze must be between 1 and 7200 minutes".into()); }
+    let c = Connection::open(path).map_err(|e| e.to_string())?;
+    let changed = c.execute("UPDATE reminders SET due_at=datetime(due_at, ?1 || ' minutes'), notified=0, completed=0 WHERE id=?2", params![minutes, id]).map_err(|e| e.to_string())?;
+    if changed == 0 { return Err("Reminder not found".into()); }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
