@@ -132,6 +132,12 @@ fn grant_webview_media_permissions(window: &WebviewWindow) -> Result<(), String>
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        })
         .setup(|app| {
             let win = app
                 .get_webview_window("main")
@@ -571,7 +577,8 @@ fn screen_capture(app: tauri::AppHandle) -> Result<screen::CaptureResult, String
     if !permissions::allowed(&path, "screen.capture")? {
         return Err("screen.capture permission is not enabled".into());
     }
-    let result = screen::capture_desktop()?;
+    let excluded = permissions::excluded(&path)?;
+    let result = screen::capture_desktop(&excluded)?;
     permissions::add_log(&path, "screen.capture", &format!("{}x{}", result.width, result.height))?;
     Ok(result)
 }
