@@ -7,6 +7,9 @@
 
   let memories: Memory[] = [];
   let memoryQuery = "";
+  let memoryOpen = false;
+  let dragX = 0;
+  let dragY = 0;
 
   let canvas: HTMLCanvasElement;
   let scene: AdamScene;
@@ -80,16 +83,19 @@
     scene?.resize();
   }
 
-  function startDrag(e: PointerEvent) {
+  async function startDrag(e: PointerEvent) {
+    if (showMenu) return;
     dragging = true; lastX = e.clientX; lastY = e.clientY;
+    const pos = await loadPosition();
+    dragX = pos?.x ?? 0; dragY = pos?.y ?? 0;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   }
-  async function drag(e: PointerEvent) {
+  function drag(e: PointerEvent) {
     if (!dragging) return;
     const dx = e.clientX-lastX, dy=e.clientY-lastY;
     lastX=e.clientX; lastY=e.clientY;
-    const pos = await loadPosition();
-    if (pos) await savePosition(pos.x+dx, pos.y+dy);
+    dragX += dx; dragY += dy;
+    void savePosition(dragX, dragY);
   }
   function stopDrag() { dragging=false; }
 
@@ -113,12 +119,14 @@
       {#if transcript}<div class="transcript">{transcript}</div>{/if}
       <div class="memory-panel">
         <input placeholder={lang === "ar" ? "ابحث في الذاكرة" : "Search memory"} bind:value={memoryQuery} />
-        <button on:click|stopPropagation={async () => { memories = memoryQuery.trim() ? await searchMemories(memoryQuery) : await listMemories(); }}>
+<button on:click|stopPropagation={async () => { memoryOpen = !memoryOpen; if (memoryOpen) memories = memoryQuery.trim() ? await searchMemories(memoryQuery) : await listMemories(); }}>
           {lang === "ar" ? "ذاكرة" : "Memory"}
         </button>
+        {#if memoryOpen}
         {#each memories.slice(0, 5) as memory}
           <div class="memory-item">{memory.content}</div>
         {/each}
+        {/if}
         {#if transcript}
           <button on:click|stopPropagation={async () => { await addMemory(transcript, "voice"); memories = await listMemories(); }}>
             {lang === "ar" ? "حفظ الكلام" : "Save transcript"}
