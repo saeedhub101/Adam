@@ -7,6 +7,7 @@ export type CharacterCapabilities = {
   hasAnimations: boolean;
   hasFacialMorphs: boolean;
   animationCount: number;
+  boneMap: Record<string, boolean>;
 };
 
 export class AdamScene {
@@ -27,8 +28,11 @@ export class AdamScene {
   private talkTime = 0;
   private idleTime = 0;
   private idleClipIndex = -1;
+  private state: "idle" | "walk" | "run" | "gesture" = "idle";
+  private stateIndex = new Map<string, number>();
+  private boneAliases = new Map<string, THREE.Object3D>();
   private capabilities: CharacterCapabilities = {
-    loaded: false, hasRig: false, hasAnimations: false, hasFacialMorphs: false, animationCount: 0
+    loaded: false, hasRig: false, hasAnimations: false, hasFacialMorphs: false, animationCount: 0, boneMap: {}
   };
 
   constructor(canvas: HTMLCanvasElement) {
@@ -60,6 +64,8 @@ export class AdamScene {
     this.activeAction = undefined;
     this.model = undefined;
     this.bones.clear();
+    this.boneAliases.clear();
+    this.stateIndex.clear();
     this.baseRotations.clear();
     this.morphTargets = [];
     this.talking = false;
@@ -67,7 +73,7 @@ export class AdamScene {
     this.idleTime = 0;
     this.idleClipIndex = -1;
     this.capabilities = {
-      loaded: false, hasRig: false, hasAnimations: false, hasFacialMorphs: false, animationCount: 0
+      loaded: false, hasRig: false, hasAnimations: false, hasFacialMorphs: false, animationCount: 0, boneMap: {}
     };
 
     try {
@@ -83,6 +89,17 @@ export class AdamScene {
       this.capabilities.hasFacialMorphs = this.morphTargets.length > 0;
       this.capabilities.animationCount = gltf.animations.length;
       this.capabilities.hasAnimations = gltf.animations.length > 0;
+      this.stateIndex.clear();
+      gltf.animations.forEach((clip, i) => {
+        const n = clip.name.toLowerCase();
+        if (this.stateIndex.has("idle") === false && /idle|breath|stand|rest/.test(n)) this.stateIndex.set("idle", i);
+        if (this.stateIndex.has("walk") === false && /walk|walking|locomotion/.test(n)) this.stateIndex.set("walk", i);
+        if (this.stateIndex.has("run") === false && /run|jog|sprint/.test(n)) this.stateIndex.set("run", i);
+        if (this.stateIndex.has("gesture") === false && /wave|gesture|greet|point|clap/.test(n)) this.stateIndex.set("gesture", i);
+      });
+      for (const key of ["head","neck","spine","leftArm","rightArm","leftForeArm","rightForeArm","leftHand","rightHand","leftUpLeg","rightUpLeg","leftLeg","rightLeg","leftFoot","rightFoot","leftEye","rightEye"]) {
+        this.capabilities.boneMap[key] = !!this.boneAliases.get(key);
+      }
 
       if (gltf.animations.length > 0) {
         this.mixer = new THREE.AnimationMixer(gltf.scene);
@@ -103,12 +120,24 @@ export class AdamScene {
   private indexBones(obj: THREE.Object3D) {
     obj.traverse((child) => {
       if (!child.name) return;
-      this.bones.set(child.name.toLowerCase(), child);
-      if (child instanceof THREE.Bone) this.baseRotations.set(child.name.toLowerCase(), child.rotation.clone());
+      const normalized = child.name.toLowerCase().replace(/mixamorig[:_]?/g, "").replace(/[^a-z0-9]/g, "");
+      this.bones.set(normalized, child);
+      if (child instanceof THREE.Bone) this.baseRotations.set(normalized, child.rotation.clone());
     });
+    const aliases: Record<string,string[]> = {
+      head:["head"], neck:["neck"], spine:["spine","spine1","spine2"],
+      leftArm:["leftarm","leftupperarm"], rightArm:["rightarm","rightupperarm"],
+      leftForeArm:["leftforearm","leftlowerarm"], rightForeArm:["rightforearm","rightlowerarm"],
+      leftHand:["lefthand"], rightHand:["righthand"], leftUpLeg:["leftupleg","leftthigh"], rightUpLeg:["rightupleg","rightthigh"],
+      leftLeg:["leftleg","leftlowerleg"], rightLeg:["rightleg","rightlowerleg"], leftFoot:["leftfoot"], rightFoot:["rightfoot"],
+      leftEye:["lefteye"], rightEye:["righteye"]
+    };
+    for (const [key,names] of Object.entries(aliases)) for (const n of names) { const b=this.bones.get(n); if (b) { this.boneAliases.set(key,b); break; } }
   }
 
-  listAnimations() { return this.actions.length; }
+  listAnimations() { return this.actions.map((a) => a.getClip().name); }
+  getAnimationState() { return this.state; }
+  setState(state: "idle"|"walk"|"run"|"gesture") { this.state = state; const i=this.stateIndex.get(state); if (i !== undefined) this.playAnimation(i); else if (state === "idle" && this.idleClipIndex >= 0) this.playAnimation(this.idleClipIndex); }
   setTalking(value: boolean) { this.talking = value; }
 
   private indexMouthMorphs(obj: THREE.Object3D) {
@@ -157,10 +186,7 @@ export class AdamScene {
   stopAnimation() { this.activeAction?.fadeOut(0.2); this.activeAction = undefined; this.idleClipIndex = -1; }
 
   private findBone(...names: string[]) {
-    for (const name of names) {
-      const found = this.bones.get(name.toLowerCase());
-      if (found) return found;
-    }
+    for (const name of names) { const found = this.boneAliases.get(name) ?? this.bones.get(name.toLowerCase().replace(/[^a-z0-9]/g, "")); if (found) return found; }
     return undefined;
   }
 
@@ -168,15 +194,15 @@ export class AdamScene {
     if ((this.activeAction && this.idleClipIndex >= 0) || !this.model || !this.capabilities.hasRig) return;
     this.idleTime += dt;
     const t = this.idleTime;
-    const spine = this.findBone("spine", "spine1", "spine_1");
+    const spine = this.findBone("spine");
     const head = this.findBone("head");
     const neck = this.findBone("neck");
-    const leftArm = this.findBone("leftarm", "left_arm", "leftupperarm");
-    const rightArm = this.findBone("rightarm", "right_arm", "rightupperarm");
-    const leftLeg = this.findBone("leftleg", "left_leg", "leftlowerleg");
-    const rightLeg = this.findBone("rightleg", "right_leg", "rightlowerleg");
-    const leftFoot = this.findBone("leftfoot", "left_foot");
-    const rightFoot = this.findBone("rightfoot", "right_foot");
+    const leftArm = this.findBone("leftArm");
+    const rightArm = this.findBone("rightArm");
+    const leftLeg = this.findBone("leftLeg");
+    const rightLeg = this.findBone("rightLeg");
+    const leftFoot = this.findBone("leftFoot");
+    const rightFoot = this.findBone("rightFoot");
 
     const set = (bone: THREE.Object3D | undefined, axis: "x" | "y" | "z", value: number) => {
       if (!bone) return;
@@ -195,6 +221,12 @@ export class AdamScene {
     set(rightLeg, "x", -step);
     set(leftFoot, "x", -step * 0.5);
     set(rightFoot, "x", step * 0.5);
+    if (this.state === "walk" || this.state === "run") {
+      const speed = this.state === "run" ? 2.8 : 1.8;
+      const stride = Math.sin(t * speed) * (this.state === "run" ? 0.28 : 0.16);
+      set(leftLeg, "x", stride); set(rightLeg, "x", -stride);
+      set(leftArm, "x", -stride * 0.35); set(rightArm, "x", stride * 0.35);
+    }
   }
 
   private createFallback() {
@@ -218,7 +250,7 @@ export class AdamScene {
     this.root.add(group);
     this.model = group;
     this.fit(group);
-    this.capabilities = { loaded: true, hasRig: false, hasAnimations: false, hasFacialMorphs: false, animationCount: 0 };
+    this.capabilities = { loaded: true, hasRig: false, hasAnimations: false, hasFacialMorphs: false, animationCount: 0, boneMap: {} };
   }
 
   private fit(obj: THREE.Object3D) {
