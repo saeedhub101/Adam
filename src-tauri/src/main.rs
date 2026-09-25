@@ -1,11 +1,12 @@
 mod ai;
 mod memory;
 mod reminders;
+mod permissions;
 use std::{fs,path::PathBuf};
 use tauri::{Manager,PhysicalPosition,PhysicalSize,WebviewWindow};
 fn state_path(app:&tauri::AppHandle)->PathBuf{app.path().app_data_dir().expect("app data directory").join("window.json")}
 fn memory_path(app:&tauri::AppHandle)->Result<PathBuf,String>{Ok(app.path().app_data_dir().map_err(|e|e.to_string())?.join("adam.db"))}
-fn main(){tauri::Builder::default().setup(|app|{let win=app.get_webview_window("main").unwrap();let _=win.set_ignore_cursor_events(false);let dir=app.path().app_data_dir().map_err(|e|e.to_string())?;fs::create_dir_all(&dir).map_err(|e|e.to_string())?;memory::init(&dir.join("adam.db"))?;Ok(())}).invoke_handler(tauri::generate_handler![set_ignore_cursor_events,set_character_size,save_position,load_position,memory_add,memory_list,memory_search,reminder_add,reminder_list,reminder_complete,cloud_save_key,cloud_has_key,cloud_delete_key,cloud_chat]).run(tauri::generate_context!()).expect("error while running Adam");}
+fn main(){tauri::Builder::default().setup(|app|{let win=app.get_webview_window("main").unwrap();let _=win.set_ignore_cursor_events(false);let dir=app.path().app_data_dir().map_err(|e|e.to_string())?;fs::create_dir_all(&dir).map_err(|e|e.to_string())?;memory::init(&dir.join("adam.db"))?;permissions::init(&dir.join("adam.db"))?;Ok(())}).invoke_handler(tauri::generate_handler![set_ignore_cursor_events,set_character_size,save_position,load_position,memory_add,memory_list,memory_search,reminder_add,reminder_list,reminder_complete,cloud_save_key,cloud_has_key,cloud_delete_key,cloud_chat,permission_list,permission_set,activity_log,excluded_apps,excluded_app_add,excluded_app_remove,emergency_stop]).run(tauri::generate_context!()).expect("error while running Adam");}
 #[tauri::command] fn set_ignore_cursor_events(window:WebviewWindow,ignore:bool)->Result<(),String>{window.set_ignore_cursor_events(ignore).map_err(|e|e.to_string())}
 #[tauri::command] fn set_character_size(window:WebviewWindow,size:u32)->Result<(),String>{let scale=(size as f64/100.0).clamp(0.6,1.6);let base=PhysicalSize::new(360u32,520u32);window.set_size(PhysicalSize::new((base.width as f64*scale) as u32,(base.height as f64*scale) as u32)).map_err(|e|e.to_string())}
 #[tauri::command] fn save_position(app:tauri::AppHandle,window:WebviewWindow,x:i32,y:i32)->Result<(),String>{let dir=app.path().app_data_dir().map_err(|e|e.to_string())?;fs::create_dir_all(&dir).map_err(|e|e.to_string())?;window.set_position(PhysicalPosition::new(x,y)).map_err(|e|e.to_string())?;fs::write(state_path(&app),format!("{{\"x\":{},\"y\":{}}}",x,y)).map_err(|e|e.to_string())}
@@ -20,3 +21,11 @@ fn main(){tauri::Builder::default().setup(|app|{let win=app.get_webview_window("
 #[tauri::command] fn cloud_has_key()->Result<bool,String>{ai::has_key()}
 #[tauri::command] fn cloud_delete_key()->Result<(),String>{ai::delete_key()}
 #[tauri::command] async fn cloud_chat(base_url:String,model:String,messages:Vec<ai::Message>)->Result<String,String>{ai::chat(ai::ChatRequest{base_url,model,messages}).await}
+
+#[tauri::command] fn permission_list(app:tauri::AppHandle)->Result<Vec<permissions::Permission>,String>{permissions::list(&memory_path(&app)?)}
+#[tauri::command] fn permission_set(app:tauri::AppHandle,capability:String,mode:String)->Result<(),String>{let p=memory_path(&app)?;permissions::set(&p,&capability,&mode)?;permissions::add_log(&p,"permission",&format!("{}={}",capability,mode))}
+#[tauri::command] fn activity_log(app:tauri::AppHandle,limit:Option<u32>)->Result<Vec<(i64,String,String,String)>,String>{permissions::logs(&memory_path(&app)?,limit.unwrap_or(100))}
+#[tauri::command] fn excluded_apps(app:tauri::AppHandle)->Result<Vec<String>,String>{permissions::excluded(&memory_path(&app)?)}
+#[tauri::command] fn excluded_app_add(app:tauri::AppHandle,name:String)->Result<(),String>{permissions::add_excluded(&memory_path(&app)?,&name)}
+#[tauri::command] fn excluded_app_remove(app:tauri::AppHandle,name:String)->Result<(),String>{permissions::remove_excluded(&memory_path(&app)?,&name)}
+#[tauri::command] fn emergency_stop(app:tauri::AppHandle)->Result<(),String>{let p=memory_path(&app)?;permissions::add_log(&p,"emergency_stop","All pending computer-control actions cancelled")}
