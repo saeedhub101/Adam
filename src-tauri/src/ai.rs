@@ -185,3 +185,47 @@ pub async fn chat_stream(
     let _ = tauri::Emitter::emit(app, &format!("adam://cloud-done/{}", request_id), &answer);
     Ok(answer)
 }
+
+
+#[derive(Debug, Serialize)]
+pub struct VisionResult {
+    pub text: String,
+}
+
+pub async fn vision_analyze(base_url: &str, model: &str, prompt: &str, png_base64: &str) -> Result<VisionResult, String> {
+    let key = entry()?.get_password().map_err(|e| e.to_string())?;
+    if base_url.trim().is_empty() || model.trim().is_empty() || prompt.trim().is_empty() {
+        return Err("Provider URL, model and prompt are required".into());
+    }
+    if png_base64.len() > 12_000_000 {
+        return Err("Captured image exceeds the safe 12 MB encoded limit".into());
+    }
+    let url = format!("{}/chat/completions", base_url.trim_end_matches('/'));
+    let body = serde_json::json!({
+        "model": model,
+        "messages": [{
+            "role": "user",
+            "content": [
+                {"type":"text","text":prompt},
+                {"type":"image_url","image_url":{"url":format!("data:image/png;base64,{}", png_base64)}}
+            ]
+        }],
+        "stream": false
+    });
+    let client = Client::builder()
+        .connect_timeout(Duration::from_secs(10))
+        .timeout(Duration::from_secs(90))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let response = client.post(url).bearer_auth(key).json(&body).send().await
+        .map_err(|e| format!("Vision provider connection failed: {}", e))?;
+    let status = response.status();
+    if !status.is_success() {
+        let body = response.text().await.unwrap_or_default();
+        return Err(format!("Vision provider failed (HTTP {}): {}", status.as_u16(), body.chars().take(500).collect::<String>()));
+    }
+    let data: ChatResponse = response.json().await.map_err(|e| e.to_string())?;
+    let text = data.choices.first().map(|c| c.message.content.clone())
+        .ok_or_else(|| "Vision provider returned no response".to_string())?;
+    Ok(VisionResult { text })
+}
