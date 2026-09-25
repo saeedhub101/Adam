@@ -1,3 +1,4 @@
+import { localModelManager } from "./model_manager";
 type Status = "idle" | "loading" | "ready" | "error";
 type ResultHandler = (text: string) => Promise<void> | void;
 
@@ -23,14 +24,7 @@ export class LocalWhisperVoice {
     if (this.recognizer) return;
     this.status = "loading"; this.error = ""; this.statusCb("loading");
     try {
-      const { pipeline, env } = await import("@huggingface/transformers");
-      // The first load may download the model; subsequent runs use the browser cache.
-      // Keeping local models enabled makes the cached model usable while offline.
-      env.allowLocalModels = true;
-      env.allowRemoteModels = true;
-      env.useBrowserCache = true;
-      this.recognizer = await pipeline("automatic-speech-recognition", "Xenova/whisper-tiny");
-      this.status = "ready"; this.statusCb("ready");
+      this.recognizer = await localModelManager.load((state) => { this.status = state.status; this.error = state.error; this.statusCb(state.status); });
     } catch (e) {
       this.status = "error"; this.error = String(e); this.statusCb("error");
       throw e;
