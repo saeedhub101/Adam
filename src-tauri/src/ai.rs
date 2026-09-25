@@ -72,24 +72,13 @@ pub async fn chat(req: ChatRequest) -> Result<String, String> {
         .timeout(Duration::from_secs(90))
         .build()
         .map_err(|e| e.to_string())?;
-    let (cancel_tx, mut cancel_rx) = oneshot::channel::<()>();
-    {
-        let mut map = cancel_map().lock().map_err(|_| "Cancellation state is unavailable".to_string())?;
-        if let Some(previous) = map.remove(request_id) { let _ = previous.send(()); }
-        map.insert(request_id.to_string(), cancel_tx);
-    }
-
-    let response = tokio::select! {
-        _ = &mut cancel_rx => {
-            if let Ok(mut map) = cancel_map().lock() { map.remove(request_id); }
-            return Err("Generation cancelled".into());
-        }
-        result = client
-            .post(url)
-            .bearer_auth(key)
-            .json(&body)
-            .send() => result.map_err(|e| format!("Provider connection failed: {}", e))?
-    };
+    let response = client
+        .post(url)
+        .bearer_auth(key)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("Provider connection failed: {}", e))?;
     let status = response.status();
     if !status.is_success() {
         let body = response.text().await.unwrap_or_default();
@@ -153,6 +142,12 @@ pub async fn chat_stream(
         ));
     }
     let mut stream = response.bytes_stream();
+    let (cancel_tx, mut cancel_rx) = oneshot::channel::<()>();
+    {
+        let mut map = cancel_map().lock().map_err(|_| "Cancellation state is unavailable".to_string())?;
+        if let Some(previous) = map.remove(request_id) { let _ = previous.send(()); }
+        map.insert(request_id.to_string(), cancel_tx);
+    }
     let mut buffer = String::new();
     let mut answer = String::new();
     loop {
