@@ -15,8 +15,6 @@
   let memories: Memory[] = $state([]);
   let memoryQuery = $state("");
   let memoryOpen = $state(false);
-  let dragX = $state(0);
-  let dragY = $state(0);
   let reminders: Reminder[] = $state([]);
   let reminderOpen = $state(false);
   let reminderTitle = $state("");
@@ -34,8 +32,6 @@
   let clickThrough = $state(false);
   let showMenu = $state(false);
   let dragging = $state(false);
-  let lastX = $state(0);
-  let lastY = $state(0);
   let listening = $state(false);
   let micError = $state("");
   let transcript = $state("");
@@ -201,8 +197,6 @@
     const position = await loadPosition();
     if (position) {
       size = position.size ?? 100;
-      dragX = position.x;
-      dragY = position.y;
     }
     await restoreLastCharacter();
     await resizeAdam();
