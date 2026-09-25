@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { FBXLoader } from "three/addons/loaders/FBXLoader.js";
 
 export type CharacterCapabilities = {
   loaded: boolean;
@@ -28,6 +29,11 @@ export class AdamScene {
   private baseRotations = new Map<THREE.Object3D, THREE.Euler>();
   private morphTargets: Array<{ mesh: THREE.Mesh; index: number }> = [];
   private talking = false;
+  private blinkTargets: Array<{ mesh: THREE.Mesh; index: number }> = [];
+  private blinkTime = 2.5;
+  private blinkActive = false;
+  private emotion: "neutral" | "happy" | "thinking" | "confused" | "surprised" | "listening" | "speaking" = "neutral";
+  private gestureQueue: string[] = [];
   private talkTime = 0;
   private idleTime = 0;
   private idleClipIndex = -1;
@@ -187,7 +193,10 @@ export class AdamScene {
       this.idleTime = 0;
     }
   }
-  setTalking(value: boolean) { this.talking = value; }
+  setTalking(value: boolean) { this.talking = value; this.emotion = value ? "speaking" : "neutral"; }
+  setEmotion(emotion: "neutral" | "happy" | "thinking" | "confused" | "surprised" | "listening" | "speaking") { this.emotion = emotion; }
+  getEmotion() { return this.emotion; }
+  queueGesture(name: string) { if (name.trim()) this.gestureQueue.push(name.trim()); }
 
   lookAtScreenPoint(x: number, y: number, width: number, height: number) {
     const head = this.findBone("head");
@@ -215,11 +224,21 @@ export class AdamScene {
       const mesh = child as THREE.Mesh;
       if (!(mesh instanceof THREE.Mesh) || !mesh.morphTargetDictionary || !mesh.morphTargetInfluences) return;
       for (const [name, index] of Object.entries(mesh.morphTargetDictionary)) {
+        if (/blink|eyeclose|eyelid|closeeye/i.test(name)) this.blinkTargets.push({ mesh, index });
         if (/viseme|mouth|jaw|open|aa|ah|speech|talk/i.test(name)) {
           this.morphTargets.push({ mesh, index });
         }
       }
     });
+  }
+
+  private applyBlink(dt: number) {
+    if (!this.blinkTargets.length) return;
+    this.blinkTime -= dt;
+    if (this.blinkTime <= 0) { this.blinkActive = true; this.blinkTime = 0.12; }
+    else if (this.blinkActive) { this.blinkActive = false; this.blinkTime = 2.5 + Math.random() * 4; }
+    const amount = this.blinkActive ? 1 : 0;
+    for (const target of this.blinkTargets) if (target.mesh.morphTargetInfluences) target.mesh.morphTargetInfluences[target.index] = THREE.MathUtils.lerp(target.mesh.morphTargetInfluences[target.index] || 0, amount, Math.min(1, dt * 20));
   }
 
   private applyTalking(dt: number) {
@@ -358,6 +377,8 @@ export class AdamScene {
     this.mixer?.update(dt);
     this.applyProceduralIdle(dt);
     this.applyTalking(dt);
+    this.applyBlink(dt);
+    if (this.gestureQueue.length && !this.activeAction) this.playAnimationByName(this.gestureQueue.shift()!);
     if (!this.contextLost) this.renderer.render(this.scene, this.camera);
   };
 }
