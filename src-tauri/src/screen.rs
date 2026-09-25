@@ -91,6 +91,11 @@ pub fn capture_desktop() -> Result<CaptureResult, String> {
             return Err("Unable to read captured pixels".into());
         }
 
+        // GetDIBits returns BGRA for a 32-bit BI_RGB bitmap; convert to RGBA before PNG encoding.
+        for px in pixels.chunks_exact_mut(4) {
+            px.swap(0, 2);
+        }
+
         let rgba = ImageBuffer::<Rgba<u8>, _>::from_raw(width, height, pixels)
             .ok_or_else(|| "Invalid capture buffer".to_string())?;
 
