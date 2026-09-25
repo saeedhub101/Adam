@@ -21,7 +21,10 @@ pub fn route(path: &Path, input: &str, language: &str) -> Result<Option<AgentRes
         return Ok(None);
     }
 
-    let target = q.split_once(' ').map(|(_, value)| value.trim()).unwrap_or("");
+    let target = q
+        .split_once(' ')
+        .map(|(_, value)| value.trim())
+        .unwrap_or("");
     if target.is_empty() {
         return Ok(Some(AgentResult {
             intent: "computer.open".into(),
