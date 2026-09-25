@@ -34,6 +34,7 @@
   let dragging = $state(false);
   let listening = $state(false);
   let micError = $state("");
+  let moveSaveTimer: ReturnType<typeof setTimeout> | undefined;
   let transcript = $state("");
   let recognition: any = $state();
   let safetyOpen = $state(false); let permissions: Permission[] = $state([]); let activity: Activity[] = $state([]);
@@ -191,7 +192,7 @@
     try { savedCharacters = JSON.parse(localStorage.getItem("adam-character-history") || "[]"); } catch { savedCharacters = []; }
     window.addEventListener("resize", () => scene.resize());
     const appWindow = getCurrentWindow();
-    await appWindow.onMoved(({ payload }) => { void savePosition(payload.x, payload.y); });
+    await appWindow.onMoved(({ payload }) => { clearTimeout(moveSaveTimer); moveSaveTimer = setTimeout(() => { void savePosition(payload.x, payload.y); }, 250); });
     await listen("adam://open-chat", () => { showMenu = true; chatOpen = true; clickThrough = false; void setIgnoreCursorEvents(false); });
     await listen("adam://open-settings", () => { showMenu = true; safetyOpen = true; clickThrough = false; void setIgnoreCursorEvents(false); });
     const position = await loadPosition();
