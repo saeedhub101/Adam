@@ -25,6 +25,7 @@ fn main(){tauri::Builder::default().setup(|app|{let win=app.get_webview_window("
 #[tauri::command] fn cloud_delete_key()->Result<(),String>{ai::delete_key()}
 #[tauri::command] async fn cloud_chat(base_url:String,model:String,messages:Vec<ai::Message>)->Result<String,String>{ai::chat(ai::ChatRequest{base_url,model,messages}).await}
 #[tauri::command] fn local_brain_reply(input:String,language:String)->Result<String,String>{Ok(local_brain::reply(&input,&language))}
+#[tauri::command] fn local_brain_execute(app:tauri::AppHandle,input:String,language:String)->Result<Option<String>,String>{local_brain::execute(&memory_path(&app)?,&input,&language)}
 #[tauri::command] async fn cloud_chat_stream(app:tauri::AppHandle,request_id:String,base_url:String,model:String,messages:Vec<ai::Message>)->Result<String,String>{ai::chat_stream(&app,&request_id,ai::ChatRequest{base_url,model,messages}).await}
 
 #[tauri::command] fn permission_list(app:tauri::AppHandle)->Result<Vec<permissions::Permission>,String>{permissions::list(&memory_path(&app)?)}
