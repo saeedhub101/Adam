@@ -2,7 +2,18 @@ use futures_util::StreamExt;
 use keyring::Entry;
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
+use std::{collections::HashMap, sync::{Mutex, OnceLock}, time::Duration};
+use tokio::sync::oneshot;
+
+static CANCELS: OnceLock<Mutex<HashMap<String, oneshot::Sender<()>>>> = OnceLock::new();
+fn cancel_map() -> &'static Mutex<HashMap<String, oneshot::Sender<()>>> {
+    CANCELS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+pub fn cancel_stream(request_id: &str) {
+    if let Ok(mut map) = cancel_map().lock() {
+        if let Some(tx) = map.remove(request_id) { let _ = tx.send(()); }
+    }
+}
 
 const SERVICE: &str = "Adam";
 const USER: &str = "cloud_api_key";
@@ -87,6 +98,16 @@ pub async fn chat(req: ChatRequest) -> Result<String, String> {
         .ok_or_else(|| "Provider returned no response".into())
 }
 
+pub async fn test_connection(base_url: &str) -> Result<String, String> {
+    if base_url.trim().is_empty() { return Err("Provider URL is required".into()); }
+    let key = entry()?.get_password().map_err(|e| e.to_string())?;
+    let url = format!("{}/models", base_url.trim_end_matches('/'));
+    let client = Client::builder().connect_timeout(Duration::from_secs(10)).timeout(Duration::from_secs(20)).build().map_err(|e| e.to_string())?;
+    let response = client.get(url).bearer_auth(key).send().await.map_err(|e| format!("Provider connection failed: {e}"))?;
+    if response.status().is_success() { Ok(format!("Provider reachable (HTTP {})", response.status().as_u16())) }
+    else { Err(format!("Provider check failed (HTTP {})", response.status().as_u16())) }
+}
+
 pub async fn chat_stream(
     app: &tauri::AppHandle,
     request_id: &str,
@@ -120,9 +141,19 @@ pub async fn chat_stream(
         ));
     }
     let mut stream = response.bytes_stream();
+    let (cancel_tx, mut cancel_rx) = oneshot::channel::<()>();
+    if let Ok(mut map) = cancel_map().lock() { map.insert(request_id.to_string(), cancel_tx); }
     let mut buffer = String::new();
     let mut answer = String::new();
-    while let Some(item) = stream.next().await {
+    loop {
+        let item = tokio::select! {
+            _ = &mut cancel_rx => {
+                if let Ok(mut map) = cancel_map().lock() { map.remove(request_id); }
+                return Err("Generation cancelled".into());
+            }
+            next = stream.next() => next
+        };
+        let Some(item) = item else { break; };
         let chunk = item.map_err(|e| e.to_string())?;
         buffer.push_str(&String::from_utf8_lossy(&chunk));
         while let Some(pos) = buffer.find("\n") {
@@ -145,6 +176,7 @@ pub async fn chat_stream(
             }
         }
     }
+    if let Ok(mut map) = cancel_map().lock() { map.remove(request_id); }
     let _ = tauri::Emitter::emit(app, &format!("adam://cloud-done/{}", request_id), &answer);
     Ok(answer)
 }
