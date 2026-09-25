@@ -1,9 +1,11 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { listen } from "@tauri-apps/api/event";
+  import { getCurrentWindow } from "@tauri-apps/api/window";
   import { onMount } from "svelte";
   import { t, type Lang } from "./lib/i18n";
   import { AdamScene } from "./lib/scene";
-  import { setCharacterSize, setIgnoreCursorEvents, savePosition, loadPosition } from "./lib/desktop";
+  import { setIgnoreCursorEvents, savePosition, loadPosition, setCharacterDimensions } from "./lib/desktop";
   import { addMemory, listMemories, searchMemories, updateMemory, deleteMemory, type Memory } from "./lib/memory";
   import { addReminder, listReminders, completeReminder, type Reminder } from "./lib/reminders";
   import { cloudChatStream, hasApiKey, saveApiKey, deleteApiKey, type ChatMessage } from "./lib/cloud";
@@ -35,6 +37,7 @@
   let lastX = $state(0);
   let lastY = $state(0);
   let listening = $state(false);
+  let micError = $state("");
   let transcript = $state("");
   let recognition: any = $state();
   let safetyOpen = $state(false); let permissions: Permission[] = $state([]); let activity: Activity[] = $state([]);
@@ -111,6 +114,20 @@
     }
   }
 
+  async function requestMicrophone() {
+    micError = "";
+    if (!navigator.mediaDevices?.getUserMedia) { micError = lang === "ar" ? "الميكروفون غير متاح في WebView2." : "Microphone access is unavailable in WebView2."; return false; }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((track) => track.stop());
+      return true;
+    } catch (e) {
+      micError = e instanceof DOMException ? `${e.name}: ${e.message || "Microphone permission was denied."}` : String(e);
+      listening = false;
+      return false;
+    }
+  }
+
   async function setupLocalVoice() {
     if (!localVoice) localVoice = new LocalWhisperVoice((status) => { whisperReady = status === "ready"; voiceBusy = status === "loading"; });
   }
@@ -141,7 +158,8 @@
     };
   }
 
-  function toggleVoice() {
+  async function toggleVoice() {
+    if (!(await requestMicrophone())) return;
     if (!recognition) setupVoice();
     if (!recognition) return;
     if (listening) recognition.stop();
@@ -176,6 +194,10 @@
     scene.setQuality(renderQuality); renderStatus = scene.getRenderStatus();
     try { savedCharacters = JSON.parse(localStorage.getItem("adam-character-history") || "[]"); } catch { savedCharacters = []; }
     window.addEventListener("resize", () => scene.resize());
+    const appWindow = getCurrentWindow();
+    await appWindow.onMoved(({ payload }) => { void savePosition(payload.x, payload.y); });
+    await listen("adam://open-chat", () => { showMenu = true; chatOpen = true; clickThrough = false; void setIgnoreCursorEvents(false); });
+    await listen("adam://open-settings", () => { showMenu = true; safetyOpen = true; clickThrough = false; void setIgnoreCursorEvents(false); });
     const position = await loadPosition();
     if (position) {
       size = position.size ?? 100;
@@ -183,6 +205,7 @@
       dragY = position.y;
     }
     await restoreLastCharacter();
+    await resizeAdam();
     cloudReady = await hasApiKey();
     try { const cfg = JSON.parse(localStorage.getItem("adam-cloud-config") || "{}"); provider = cfg.provider ?? provider; model = cfg.model ?? model; customBaseUrl = cfg.customBaseUrl ?? ""; persona = cfg.persona ?? persona; offlineFallback = cfg.offlineFallback ?? true; } catch {}
     await setIgnoreCursorEvents(false);
@@ -292,25 +315,19 @@
   async function stopAll() { await emergencyStop(); activity = await listActivity(); }
 
   async function resizeAdam() {
-    await setCharacterSize(size);
-    scene?.resize();
+    if (!scene) return;
+    const preferred = scene.getPreferredWindowSize(size);
+    await setCharacterDimensions(preferred.width, preferred.height, size);
+    scene.resize();
   }
 
   async function startDrag(e: PointerEvent) {
-    if (showMenu || clickThrough) return;
-    dragging = true; lastX = e.clientX; lastY = e.clientY;
-    const pos = await loadPosition();
-    dragX = pos?.x ?? 0; dragY = pos?.y ?? 0;
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    if (showMenu || clickThrough || (e.target as HTMLElement)?.closest("[data-no-drag]")) return;
+    dragging = true;
+    try { await getCurrentWindow().startDragging(); }
+    catch (e) { micError = ""; console.warn("Native window drag failed", e); }
+    finally { dragging = false; }
   }
-  function drag(e: PointerEvent) {
-    if (!dragging) return;
-    const dx = e.clientX-lastX, dy=e.clientY-lastY;
-    lastX=e.clientX; lastY=e.clientY;
-    dragX += dx; dragY += dy;
-    void savePosition(dragX, dragY);
-  }
-  function stopDrag() { dragging=false; }
 
   function trackPointer(e: PointerEvent) {
     if (!scene || showMenu || dragging) return;
@@ -339,8 +356,13 @@
 
 <svelte:window onkeydown={(e) => { if (e.key === "Escape") void closeMenu(); }} />
 
-<div class="stage" class:drag-over={dragOver} ondragover={(e) => { e.preventDefault(); dragOver = true; }} ondragleave={() => dragOver = false} ondrop={(e) => { e.preventDefault(); dragOver = false; const files = e.dataTransfer?.files; if (files?.length) void loadCharacterFiles(files); }} ondblclick={() => void openMenu()} oncontextmenu={(e) => { e.preventDefault(); void openMenu(); }} onpointerdown={startDrag} onpointermove={(e) => { drag(e); trackPointer(e); }} onpointerup={stopDrag}>
+<div class="stage" class:drag-over={dragOver} ondragover={(e) => { e.preventDefault(); dragOver = true; }} ondragleave={() => dragOver = false} ondrop={(e) => { e.preventDefault(); dragOver = false; const files = e.dataTransfer?.files; if (files?.length) void loadCharacterFiles(files); }} ondblclick={() => void openMenu()} oncontextmenu={(e) => { e.preventDefault(); void openMenu(); }} onpointerdown={startDrag} onpointermove={(e) => trackPointer(e)}>
   <canvas bind:this={canvas}></canvas>
+  <div class="quickbar" data-no-drag onpointerdown={(e) => e.stopPropagation()}>
+    <button onclick={() => { showMenu = true; chatOpen = true; }} title="AI Chat">💬</button>
+    <button class:active={listening} onclick={() => void toggleVoice()} title="Microphone">🎙</button>
+    <button onclick={() => void openMenu()} title="Adam menu">⚙</button>
+  </div>
   <div class="bubble">{t(lang, "idle")}</div>
   {#if showMenu}
     <div class="menu" onpointerdown={(e) => e.stopPropagation()} onpointermove={(e) => e.stopPropagation()}>
@@ -351,7 +373,7 @@
         <select bind:value={animationState} onchange={() => scene?.setState(animationState)}><option value="idle">Idle</option><option value="walk">Walk</option><option value="run">Run</option><option value="gesture">Gesture</option></select>
         {#if animationNames.length}<small>{animationNames.join(" · ")}</small>{/if}
       </div>
-      <label>{t(lang,"size")} {size}% <input type="range" min="60" max="160" bind:value={size} oninput={resizeAdam}/></label>
+      <label>{t(lang,"size")} {size}% <input type="range" min="60" max="160" step="5" bind:value={size} oninput={resizeAdam}/></label><small class="size-help">{lang === "ar" ? "يتغير حجم آدم وحجم النافذة تلقائياً معاً." : "Adam and the transparent window resize together."}</small>
       <button onclick={() => { lang = lang === "en" ? "ar" : "en"; setupVoice(); }}>{lang === "en" ? "العربية" : "English"}</button>
       <button onclick={() => chatOpen = !chatOpen}>{lang === "ar" ? "محادثة الذكاء الاصطناعي" : "AI Chat"}</button>
       {#if chatOpen}<div class="chat-panel">
@@ -362,7 +384,7 @@
           <label><input type="checkbox" bind:checked={offlineFallback} /> Offline fallback</label>
           <button onclick={saveCloudConfig}>Save AI settings</button>{#if !cloudReady}<input type="password" placeholder="API key" bind:value={cloudKey} /><button onclick={saveCloudKey}>Save key</button>{:else}<input placeholder={lang === "ar" ? "اكتب لآدم" : "Message Adam"} bind:value={chatInput} onkeydown={(e) => e.key === "Enter" && sendChat()} /><button disabled={chatBusy} onclick={() => sendChat()}>{chatBusy ? "..." : "Send"}</button><button onclick={async () => { await deleteApiKey(); cloudReady = false; }}>Remove key</button>{/if}{#if chatReply}<div class="chat-reply">{chatReply}</div>{/if}</div>{/if}
       <button class:active={listening} onclick={toggleVoice}>{listening ? "● " : "🎙 "} {listening ? (lang === "ar" ? "استماع..." : "Listening...") : (lang === "ar" ? "الميكروفون" : "Microphone")}</button>
-      {#if transcript}<div class="transcript">{transcript}</div>{/if}
+      {#if micError}<div class="error mic-error">{micError}</div>{/if}{#if transcript}<div class="transcript">{transcript}</div>{/if}
       <button class:active={voiceBusy} onclick={toggleLocalVoice}>{voiceBusy ? "Loading Whisper…" : whisperReady ? "Local Whisper" : "Load Local Whisper"}</button>
       <div class="memory-panel">
         <button onclick={async () => { reminderOpen = !reminderOpen; if (reminderOpen) await refreshReminders(); }}>
@@ -424,4 +446,4 @@
     </div>
   {/if}
 </div>
-<style>.stage{position:relative;width:100vw;height:100vh;overflow:visible;user-select:none}.stage.drag-over{outline:2px dashed rgba(100,180,255,.9);outline-offset:-4px}.error{padding:7px;border-radius:8px;background:rgba(180,40,40,.3);color:#ffd7d7}.capabilities{font-size:11px;opacity:.8}.animation-panel{display:flex;flex-direction:column;gap:5px}.loading{padding:6px;border-radius:8px;background:rgba(80,140,255,.18)}.loading.hidden{display:none}.quality-row{display:flex;justify-content:space-between;align-items:center;gap:8px}.quality-row label{display:flex;align-items:center;gap:5px}.bone-capabilities{display:grid;grid-template-columns:1fr 1fr;gap:2px;font-size:10px}.bone-capabilities span{opacity:.9}.bone-capabilities .missing{opacity:.45}.history{opacity:.65;word-break:break-word}.animation-panel small{font-size:10px;opacity:.7;word-break:break-word}.stage canvas{display:block;width:100%;height:100%}.bubble{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);padding:4px 10px;border-radius:12px;background:rgba(20,25,35,.72);color:white;font:12px sans-serif;pointer-events:none}.menu{position:absolute;right:8px;top:8px;width:260px;max-height:90vh;overflow:auto;padding:10px;border-radius:14px;background:rgba(20,24,32,.94);color:white;font:13px sans-serif;display:flex;flex-direction:column;gap:7px}.menu button,.menu input,.menu select,.menu textarea{font:inherit;border-radius:8px;border:1px solid rgba(255,255,255,.18);padding:7px;box-sizing:border-box}.menu button{background:#2f3746;color:white}.menu input,.menu select,.menu textarea{width:100%;background:#151a22;color:white}.chat-panel{padding:7px;border-radius:10px;background:rgba(255,255,255,.06);display:flex;flex-direction:column;gap:6px}.safety-panel{padding:7px;border-radius:10px;background:rgba(255,255,255,.06);display:flex;flex-direction:column;gap:6px} .safety-panel label{display:flex;justify-content:space-between;gap:6px} .activity-log{max-height:140px;overflow:auto;padding:6px;background:rgba(0,0,0,.18);border-radius:8px}.chat-reply{white-space:pre-wrap;max-height:180px;overflow:auto;padding:7px;border-radius:8px;background:rgba(255,255,255,.08)}</style>
+<style>.stage{position:relative;width:100vw;height:100vh;overflow:visible;user-select:none;touch-action:none}.stage.drag-over{outline:2px dashed rgba(100,180,255,.9);outline-offset:-4px}.error{padding:7px;border-radius:8px;background:rgba(180,40,40,.3);color:#ffd7d7}.capabilities{font-size:11px;opacity:.8}.animation-panel{display:flex;flex-direction:column;gap:5px}.loading{padding:6px;border-radius:8px;background:rgba(80,140,255,.18)}.loading.hidden{display:none}.quality-row{display:flex;justify-content:space-between;align-items:center;gap:8px}.quality-row label{display:flex;align-items:center;gap:5px}.bone-capabilities{display:grid;grid-template-columns:1fr 1fr;gap:2px;font-size:10px}.bone-capabilities span{opacity:.9}.bone-capabilities .missing{opacity:.45}.history{opacity:.65;word-break:break-word}.animation-panel small{font-size:10px;opacity:.7;word-break:break-word}.stage canvas{display:block;width:100%;height:100%}.quickbar{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);display:flex;gap:6px;padding:5px;border-radius:14px;background:rgba(20,24,32,.72);backdrop-filter:blur(8px);z-index:5}.quickbar button{width:34px;height:32px;padding:0;border:0;border-radius:9px;background:rgba(55,65,82,.9);color:white;cursor:pointer}.quickbar button:hover,.quickbar button.active{background:rgba(75,110,170,.95)}.bubble{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);padding:4px 10px;border-radius:12px;background:rgba(20,25,35,.72);color:white;font:12px sans-serif;pointer-events:none}.size-help{opacity:.65;font-size:10px}.mic-error{font-size:11px}.menu{position:absolute;right:8px;top:8px;width:260px;max-height:90vh;overflow:auto;padding:10px;border-radius:14px;background:rgba(20,24,32,.94);color:white;font:13px sans-serif;display:flex;flex-direction:column;gap:7px}.menu button,.menu input,.menu select,.menu textarea{font:inherit;border-radius:8px;border:1px solid rgba(255,255,255,.18);padding:7px;box-sizing:border-box}.menu button{background:#2f3746;color:white}.menu input,.menu select,.menu textarea{width:100%;background:#151a22;color:white}.chat-panel{padding:7px;border-radius:10px;background:rgba(255,255,255,.06);display:flex;flex-direction:column;gap:6px}.safety-panel{padding:7px;border-radius:10px;background:rgba(255,255,255,.06);display:flex;flex-direction:column;gap:6px} .safety-panel label{display:flex;justify-content:space-between;gap:6px} .activity-log{max-height:140px;overflow:auto;padding:6px;background:rgba(0,0,0,.18);border-radius:8px}.chat-reply{white-space:pre-wrap;max-height:180px;overflow:auto;padding:7px;border-radius:8px;background:rgba(255,255,255,.08)}</style>
