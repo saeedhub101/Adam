@@ -207,19 +207,19 @@
   }
 </script>
 
-<svelte:window on:keydown={(e) => e.key === "Escape" && (showMenu = false)} />
+<svelte:window onkeydown={(e) => e.key === "Escape" && (showMenu = false)} />
 
-<div class="stage" on:pointerdown={startDrag} on:pointermove={drag} on:pointerup={stopDrag}>
+<div class="stage" onpointerdown={startDrag} onpointermove={drag} onpointerup={stopDrag}>
   <canvas bind:this={canvas}></canvas>
   <div class="bubble">{t(lang, "idle")}</div>
   {#if showMenu}
     <div class="menu">
       <button onclick={chooseCharacter}>{t(lang,"changeCharacter")}</button>
-      <label>{t(lang,"size")} {size}% <input type="range" min="60" max="160" bind:value={size} on:input={resizeAdam}/></label>
+      <label>{t(lang,"size")} {size}% <input type="range" min="60" max="160" bind:value={size} oninput={resizeAdam}/></label>
       <button onclick={() => { lang = lang === "en" ? "ar" : "en"; setupVoice(); }}>{lang === "en" ? "العربية" : "English"}</button>
       <button onclick={() => chatOpen = !chatOpen}>{lang === "ar" ? "محادثة الذكاء الاصطناعي" : "AI Chat"}</button>
       {#if chatOpen}<div class="chat-panel">
-          <label>Provider <select bind:value={provider} on:change={selectProvider}>{#each Object.entries(providers) as [key, p]}<option value={key}>{p.name}</option>{/each}</select></label>
+          <label>Provider <select bind:value={provider} onchange={selectProvider}>{#each Object.entries(providers) as [key, p]}<option value={key}>{p.name}</option>{/each}</select></label>
           {#if provider === "custom"}<input placeholder="https://your-provider/v1" bind:value={customBaseUrl} />{/if}
           <input placeholder="Model" bind:value={model} />
           <textarea rows="2" placeholder="Adam persona" bind:value={persona}></textarea>
