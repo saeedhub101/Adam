@@ -7,3 +7,5 @@ Included: Tauri v2 desktop companion, local SQLite memory/calendar/reminders, Cr
 Release truth: CI cannot prove physical Windows 10/11 permutations, production signing certificates, final character art, hardware microphone latency, or a signed updater endpoint without those external inputs.
 
 First release tag: v0.1.0
+
+Release publication trigger is intentionally tied to this commit message for the first release only.
