@@ -61,9 +61,17 @@ pub fn detect_intent(input: &str) -> Intent {
     {
         return Intent::Time;
     }
-    if ["hello", "hi", "hey", "good morning", "good evening", "مرحبا", "اهلا", "السلام عليكم"]
-        .iter()
-        .any(|x| q.contains(x))
+    let greetings = [
+        "hello",
+        "hi",
+        "hey",
+        "good morning",
+        "good evening",
+        "مرحبا",
+        "اهلا",
+        "السلام عليكم",
+    ];
+    if greetings.iter().any(|x| q.contains(x))
     {
         return Intent::Greeting;
     }
@@ -344,7 +352,8 @@ mod tests {
     }
     #[test]
     fn appointment_is_calendar() {
-        assert_eq!(detect_intent("add an appointment tomorrow"), Intent::Calendar)
+        let intent = detect_intent("add an appointment tomorrow");
+        assert_eq!(intent, Intent::Calendar)
     }
     #[test]
     fn unknown() {
