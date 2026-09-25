@@ -17,7 +17,8 @@ pub fn init(path: &Path) -> Result<(), String> {
         let rows = stmt
             .query_map([], |row| row.get::<_, String>(1))
             .map_err(|e| e.to_string())?;
-        rows.filter_map(Result::ok).any(|name| name == "notified")
+        let has_column = rows.filter_map(Result::ok).any(|name| name == "notified");
+        has_column
     };
     if !has_notified {
         conn.execute(
