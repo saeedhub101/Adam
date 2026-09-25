@@ -49,8 +49,8 @@ fn discover_uwp_startapps(out:&mut Vec<AppEntry>){
  if !result.status.success(){return}
  let value:serde_json::Value=serde_json::from_slice(&result.stdout).unwrap_or(serde_json::Value::Null);
  match value {
-  serde_json::Value::Array(items)=>for item in items{let n=item.get("Name").and_then(|v|v.as_str()).unwrap_or("");let id=item.get("AppID").and_then(|v|v.as_str()).unwrap_or("");add_entry(out,n.to_string(),id,"uwp-startapps");},
-  serde_json::Value::Object(item)=>{let n=item.get("Name").and_then(|v|v.as_str()).unwrap_or("");let id=item.get("AppID").and_then(|v|v.as_str()).unwrap_or("");add_entry(out,n.to_string(),id,"uwp-startapps");},
+  serde_json::Value::Array(items)=>for item in items{let n=item.get("Name").and_then(|v|v.as_str()).unwrap_or("");let id=item.get("AppID").and_then(|v|v.as_str()).unwrap_or("");add_entry(out,n.to_string(),id.to_string(),"uwp-startapps");},
+  serde_json::Value::Object(item)=>{let n=item.get("Name").and_then(|v|v.as_str()).unwrap_or("");let id=item.get("AppID").and_then(|v|v.as_str()).unwrap_or("");add_entry(out,n.to_string(),id.to_string(),"uwp-startapps");},
   _=>{}
  }
 }
@@ -74,33 +74,35 @@ pub fn media_action(action:&str)->Result<(),String>{use windows::Win32::UI::Inpu
 
 #[cfg(target_os="windows")]
 pub fn clipboard_read()->Result<String,String>{
- use windows::Win32::Foundation::HWND;
+ use windows::Win32::Foundation::{HANDLE,HGLOBAL};
  use windows::Win32::System::DataExchange::{CloseClipboard,GetClipboardData,OpenClipboard};
  use windows::Win32::System::Memory::{GlobalLock,GlobalSize,GlobalUnlock};
- use windows::Win32::UI::WindowsAndMessaging::CF_UNICODETEXT;
+ use windows::Win32::System::DataExchange::CF_UNICODETEXT;
  unsafe{
-  OpenClipboard(HWND::default()).map_err(|e|e.to_string())?;
+  OpenClipboard(None).map_err(|e|e.to_string())?;
   let handle=GetClipboardData(CF_UNICODETEXT).map_err(|e|{let _=CloseClipboard();e.to_string()})?;
-  let ptr=GlobalLock(handle); if ptr.is_null(){let _=CloseClipboard();return Err("Clipboard text could not be locked".into())}
-  let size=GlobalSize(handle).0 as usize; let slice=std::slice::from_raw_parts(ptr as *const u16,size/2);
+  let mem=HGLOBAL(handle.0);
+  let ptr=GlobalLock(mem); if ptr.is_null(){let _=CloseClipboard();return Err("Clipboard text could not be locked".into())}
+  let size=GlobalSize(mem).map_err(|e|{let _=CloseClipboard();e.to_string()})?.0 as usize; let slice=std::slice::from_raw_parts(ptr as *const u16,size/2);
   let end=slice.iter().position(|v|*v==0).unwrap_or(slice.len()); let value=String::from_utf16_lossy(&slice[..end]);
-  let _=GlobalUnlock(handle); let _=CloseClipboard(); Ok(value)
+  let _=GlobalUnlock(mem); let _=CloseClipboard(); Ok(value)
  }
 }
 #[cfg(not(target_os="windows"))]pub fn clipboard_read()->Result<String,String>{Err("Windows only".into())}
 #[cfg(target_os="windows")]
 pub fn clipboard_write(text:&str)->Result<(),String>{
- use windows::Win32::Foundation::HWND;
+ use windows::Win32::Foundation::{HGLOBAL,HANDLE};
  use windows::Win32::System::DataExchange::{CloseClipboard,EmptyClipboard,OpenClipboard,SetClipboardData};
  use windows::Win32::System::Memory::{GlobalAlloc,GlobalLock,GlobalUnlock,GMEM_MOVEABLE};
- use windows::Win32::UI::WindowsAndMessaging::CF_UNICODETEXT;
+ use windows::Win32::System::DataExchange::CF_UNICODETEXT;
  let wide:Vec<u16>=text.encode_utf16().chain(std::iter::once(0)).collect();
  unsafe{
-  OpenClipboard(HWND::default()).map_err(|e|e.to_string())?; EmptyClipboard().map_err(|e|{let _=CloseClipboard();e.to_string()})?;
-  let mem=GlobalAlloc(GMEM_MOVEABLE,wide.len()*2); if mem.is_invalid(){let _=CloseClipboard();return Err("Clipboard allocation failed".into())}
+  OpenClipboard(None).map_err(|e|e.to_string())?; EmptyClipboard().map_err(|e|{let _=CloseClipboard();e.to_string()})?;
+  let mem=GlobalAlloc(GMEM_MOVEABLE,wide.len()*2).map_err(|e|{let _=CloseClipboard();e.to_string()})?;
   let ptr=GlobalLock(mem); if ptr.is_null(){let _=CloseClipboard();return Err("Clipboard memory lock failed".into())}
   std::ptr::copy_nonoverlapping(wide.as_ptr(),ptr as *mut u16,wide.len()); let _=GlobalUnlock(mem);
-  SetClipboardData(CF_UNICODETEXT,mem).map_err(|e|{let _=CloseClipboard();e.to_string()})?; let _=CloseClipboard(); Ok(())
+  let handle:HANDLE=mem.into();
+  SetClipboardData(CF_UNICODETEXT,Some(handle)).map_err(|e|{let _=CloseClipboard();e.to_string()})?; let _=CloseClipboard(); Ok(())
  }
 }
 #[cfg(not(target_os="windows"))]pub fn clipboard_write(_: &str)->Result<(),String>{Err("Windows only".into())}
