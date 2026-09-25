@@ -8,12 +8,18 @@ pub struct Permission {
 }
 
 const MODES: [&str; 4] = ["ask", "session", "always", "deny"];
+const REQUIRED_CATEGORIES: [&str; 12] = ["microphone_listening","screen_capture","mouse_control","keyboard_control","launch_apps","files_read","files_modify_delete","clipboard","send_screen_to_cloud","send_memory_to_cloud","system_settings","shell_commands"];
 
 pub fn init(path: &Path) -> Result<(), String> {
     let c = Connection::open(path).map_err(|e| e.to_string())?;
     c.execute_batch("CREATE TABLE IF NOT EXISTS permissions (capability TEXT PRIMARY KEY, mode TEXT NOT NULL); CREATE TABLE IF NOT EXISTS excluded_apps (app TEXT PRIMARY KEY); CREATE TABLE IF NOT EXISTS activity_log (id INTEGER PRIMARY KEY AUTOINCREMENT, action TEXT NOT NULL, detail TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);")
         .map_err(|e| e.to_string())?;
     c.execute("INSERT OR IGNORE INTO permissions(capability,mode) VALUES ('computer.open','ask'),('computer.control','ask'),('screen.capture','ask'),('microphone','ask'),('cloud.ai','ask')", [])
+        .map_err(|e| e.to_string())?;
+    for category in REQUIRED_CATEGORIES {
+        c.execute("INSERT OR IGNORE INTO permissions(capability,mode) VALUES (?1,'ask')", [category]).map_err(|e| e.to_string())?;
+    }
+    c.execute("CREATE TABLE IF NOT EXISTS permission_scopes (capability TEXT NOT NULL, app TEXT NOT NULL, mode TEXT NOT NULL, PRIMARY KEY(capability,app))", [])
         .map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -103,6 +109,20 @@ pub fn remove_excluded(path: &Path, app: &str) -> Result<(), String> {
         params![app.trim()],
     )
     .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+pub fn reset_all(path: &Path) -> Result<(), String> {
+    let c = Connection::open(path).map_err(|e| e.to_string())?;
+    c.execute("UPDATE permissions SET mode='ask'", []).map_err(|e| e.to_string())?;
+    c.execute("DELETE FROM permission_scopes", []).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+pub fn set_scope(path: &Path, capability: &str, app: &str, mode: &str) -> Result<(), String> {
+    if capability.trim().is_empty() || app.trim().is_empty() || !valid_mode(mode) { return Err("Invalid permission scope".into()); }
+    let c = Connection::open(path).map_err(|e| e.to_string())?;
+    c.execute("INSERT INTO permission_scopes(capability,app,mode) VALUES(?1,?2,?3) ON CONFLICT(capability,app) DO UPDATE SET mode=excluded.mode", params![capability.trim(),app.trim(),mode]).map_err(|e| e.to_string())?;
     Ok(())
 }
 
