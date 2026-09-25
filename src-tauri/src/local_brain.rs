@@ -112,10 +112,7 @@ fn parse_due(input: &str) -> DateTime<Local> {
     if q.contains("in 30 minutes") {
         return now + Duration::minutes(30);
     }
-    if q.contains("in an hour")
-        || q.contains("in 1 hour")
-        || q.contains("بعد ساعه")
-    {
+    if q.contains("in an hour") || q.contains("in 1 hour") || q.contains("بعد ساعه") {
         return now + Duration::hours(1);
     }
     if q.contains("tomorrow") || q.contains("غدا") || q.contains("غداً") {
