@@ -271,7 +271,7 @@
         }
         if (agentResult) {
           chatReply = agentResult.message;
-          chatHistory = [...chatHistory, { role: "assistant", content: agentResult.message }].slice(-24);
+          chatHistory = [...chatHistory, { role: "assistant" as const, content: agentResult.message }].slice(-24);
           localStorage.setItem("adam-chat-history", JSON.stringify(chatHistory));
           speak(agentResult.message);
           if (agentResult.action === "opened" || agentResult.action === "rejected" || agentResult.action === "blocked") return;
@@ -281,7 +281,7 @@
       const localReply = await invoke<string | null>("local_brain_execute", { input, language: lang });
       if (localReply) {
         chatReply = localReply;
-        chatHistory = [...chatHistory, { role: "assistant", content: localReply }].slice(-24);
+        chatHistory = [...chatHistory, { role: "assistant" as const, content: localReply }].slice(-24);
         localStorage.setItem("adam-chat-history", JSON.stringify(chatHistory));
         speak(localReply);
         return;
@@ -312,7 +312,7 @@
       }
       chatReply = reply;
       if (reply) {
-        chatHistory = [...chatHistory, { role: "assistant", content: reply }].slice(-24);
+        chatHistory = [...chatHistory, { role: "assistant" as const, content: reply }].slice(-24);
         localStorage.setItem("adam-chat-history", JSON.stringify(chatHistory));
       }
       speak(reply);
