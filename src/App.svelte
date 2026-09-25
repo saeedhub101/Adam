@@ -39,25 +39,33 @@
   function setupVoice() {
     const Recognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!Recognition) return;
+    recognition?.abort?.();
     recognition = new Recognition();
     recognition.continuous = false;
     recognition.interimResults = true;
     recognition.lang = lang === "ar" ? "ar-SA" : "en-US";
     recognition.onstart = () => { (window as any).speechSynthesis?.cancel(); scene?.setTalking(false); listening = true; };
-    recognition.onend = () => listening = false;
+    recognition.onend = () => { listening = false; };
     recognition.onerror = () => { listening = false; scene?.setTalking(false); };
-    recognition.onresult = (event: any) => {
+    recognition.onresult = async (event: any) => {
       let text = "";
       for (let i = event.resultIndex; i < event.results.length; i++) text += event.results[i][0].transcript;
       transcript = text.trim();
-      if (event.results[event.results.length - 1]?.isFinal && transcript) speak(transcript);
+      if (event.results[event.results.length - 1]?.isFinal && transcript) await sendChat(transcript);
     };
   }
 
   function toggleVoice() {
     if (!recognition) setupVoice();
     if (!recognition) return;
-    if (listening) recognition.stop(); else { (window as any).speechSynthesis?.cancel(); scene?.setTalking(false); recognition.lang = lang === "ar" ? "ar-SA" : "en-US"; recognition.start(); }
+    if (listening) recognition.stop();
+    else {
+      (window as any).speechSynthesis?.cancel();
+      scene?.setTalking(false);
+      transcript = "";
+      recognition.lang = lang === "ar" ? "ar-SA" : "en-US";
+      try { recognition.start(); } catch {}
+    }
   }
 
   function speak(text: string) {
@@ -110,7 +118,37 @@
   function saveCloudConfig() { localStorage.setItem("adam-cloud-config", JSON.stringify({ provider, model, customBaseUrl, persona, offlineFallback })); chatReply = lang === "ar" ? "تم حفظ الإعدادات." : "AI settings saved."; }
   function selectProvider() { const p = providers[provider as keyof typeof providers]; if (provider !== "custom") model = p.model; }
   function offlineReply(input: string) { const q = input.toLowerCase(); if (q.includes("hello") || q.includes("hi") || q.includes("مرحبا")) return lang === "ar" ? "مرحباً، أنا آدم. أعمل حالياً في الوضع المحلي." : "Hello, I’m Adam. I’m currently working in local mode."; if (q.includes("time") || q.includes("الوقت")) return new Date().toLocaleString(); return lang === "ar" ? "لا أستطيع الوصول إلى نموذج السحابة الآن، لكنني ما زلت متاحاً للمهام المحلية والذاكرة والتذكيرات." : "I can’t reach the cloud model now, but memory and reminders are still available."; }
-  async function sendChat() { if (!chatInput.trim() || chatBusy) return; const input = chatInput.trim(); chatInput = ""; chatBusy = true; try { if (!cloudReady) { chatReply = offlineFallback ? offlineReply(input) : "API key is not configured."; return; } const cfg = activeConfig(); if (!cfg.baseUrl || !cfg.model) throw new Error("Provider URL and model are required."); const messages: ChatMessage[] = [{ role: "system", content: persona + " Reply in " + (lang === "ar" ? "Arabic" : "English") + " unless the user asks otherwise." }, { role: "user", content: input }]; chatReply = await cloudChat(cfg, messages); } catch (e) { chatReply = offlineFallback ? offlineReply(input) : String(e); } finally { chatBusy = false; } }
+  async function sendChat(inputOverride?: string) {
+    const input = (inputOverride ?? chatInput).trim();
+    if (!input || chatBusy) return;
+    if (!inputOverride) chatInput = "";
+    chatBusy = true;
+    try {
+      let reply = "";
+      if (!cloudReady) {
+        reply = offlineFallback ? offlineReply(input) : "API key is not configured.";
+      } else {
+        const cfg = activeConfig();
+        if (!cfg.baseUrl || !cfg.model) throw new Error("Provider URL and model are required.");
+        const memoriesForContext = await searchMemories(input, 5);
+        const memoryContext = memoriesForContext.length
+          ? "\nRelevant local memory:\n" + memoriesForContext.map((m) => "- " + m.content).join("\n")
+          : "";
+        const messages: ChatMessage[] = [
+          { role: "system", content: persona + " Reply in " + (lang === "ar" ? "Arabic" : "English") + " unless the user asks otherwise." + memoryContext },
+          { role: "user", content: input }
+        ];
+        reply = await cloudChat(cfg, messages);
+      }
+      chatReply = reply;
+      speak(reply);
+    } catch (e) {
+      chatReply = offlineFallback ? offlineReply(input) : String(e);
+      if (offlineFallback) speak(chatReply);
+    } finally {
+      chatBusy = false;
+    }
+  }
 
   async function openSafety() { safetyOpen = !safetyOpen; if (safetyOpen) { permissions = await listPermissions(); activity = await listActivity(); } }
   async function changePermission(capability: string, mode: string) { await setPermission(capability, mode); permissions = await listPermissions(); activity = await listActivity(); }
