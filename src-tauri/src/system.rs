@@ -26,7 +26,7 @@ fn walk(root:&std::path::Path,out:&mut Vec<AppEntry>,depth:u8){
 }
 
 #[cfg(target_os="windows")]
-pub fn action(action:&str)->Result<String,String>{use windows::Win32::UI::WindowsAndMessaging::{LockWorkStation,ExitWindowsEx,EWX_LOGOFF,EWX_REBOOT,EWX_SHUTDOWN};unsafe{match action{"lock"=>{LockWorkStation().map_err(|e|e.to_string())?;Ok("Windows locked".into())},"restart"=>{ExitWindowsEx(EWX_REBOOT,0).map_err(|e|e.to_string())?;Ok("Restart requested".into())},"shutdown"=>{ExitWindowsEx(EWX_SHUTDOWN,0).map_err(|e|e.to_string())?;Ok("Shutdown requested".into())},"signout"=>{ExitWindowsEx(EWX_LOGOFF,0).map_err(|e|e.to_string())?;Ok("Sign out requested".into())},"sleep"=>Err("Sleep requires explicit confirmation and is handled by the UI".into()),_=>Err("Unsupported action".into())}}}
+pub fn action(action:&str)->Result<String,String>{use windows::Win32::System::Shutdown::{LockWorkStation,ExitWindowsEx,EWX_LOGOFF,EWX_REBOOT,EWX_SHUTDOWN,EWX_FORCE};unsafe{match action{"lock"=>{LockWorkStation().map_err(|e|e.to_string())?;Ok("Windows locked".into())},"restart"=>{ExitWindowsEx(EWX_REBOOT|EWX_FORCE,0).map_err(|e|e.to_string())?;Ok("Restart requested".into())},"shutdown"=>{ExitWindowsEx(EWX_SHUTDOWN|EWX_FORCE,0).map_err(|e|e.to_string())?;Ok("Shutdown requested".into())},"signout"=>{ExitWindowsEx(EWX_LOGOFF|EWX_FORCE,0).map_err(|e|e.to_string())?;Ok("Sign out requested".into())},"sleep"=>Err("Sleep requires explicit confirmation and is handled by the UI".into()),_=>Err("Unsupported action".into())}}}
 #[cfg(not(target_os="windows"))]pub fn action(_: &str)->Result<String,String>{Err("Windows only".into())}
 
 #[cfg(target_os="windows")]
