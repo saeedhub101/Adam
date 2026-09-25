@@ -29,6 +29,7 @@
   let scene: AdamScene;
   let lang: Lang = $state("en");
   let size = $state(100);
+  let clickThrough = $state(false);
   let showMenu = $state(false);
   let dragging = $state(false);
   let lastX = $state(0);
@@ -99,7 +100,12 @@
     setupVoice();
     await scene.load("/adam.glb");
     window.addEventListener("resize", () => scene.resize());
-    const position = await loadPosition(); if (position) await savePosition(position.x, position.y);
+    const position = await loadPosition();
+    if (position) {
+      size = position.size ?? 100;
+      dragX = position.x;
+      dragY = position.y;
+    }
     cloudReady = await hasApiKey();
     try { const cfg = JSON.parse(localStorage.getItem("adam-cloud-config") || "{}"); provider = cfg.provider ?? provider; model = cfg.model ?? model; customBaseUrl = cfg.customBaseUrl ?? ""; persona = cfg.persona ?? persona; offlineFallback = cfg.offlineFallback ?? true; } catch {}
     await setIgnoreCursorEvents(false);
@@ -186,7 +192,7 @@
   }
 
   async function startDrag(e: PointerEvent) {
-    if (showMenu) return;
+    if (showMenu || clickThrough) return;
     dragging = true; lastX = e.clientX; lastY = e.clientY;
     const pos = await loadPosition();
     dragX = pos?.x ?? 0; dragY = pos?.y ?? 0;
@@ -201,15 +207,28 @@
   }
   function stopDrag() { dragging=false; }
 
+  async function openMenu() {
+    clickThrough = false;
+    await setIgnoreCursorEvents(false);
+    showMenu = true;
+  }
+
+  async function closeMenu() {
+    showMenu = false;
+    clickThrough = false;
+    await setIgnoreCursorEvents(false);
+  }
+
   async function toggleThrough() {
-    await setIgnoreCursorEvents(!showMenu);
-    showMenu = !showMenu;
+    clickThrough = !clickThrough;
+    showMenu = false;
+    await setIgnoreCursorEvents(clickThrough);
   }
 </script>
 
-<svelte:window onkeydown={(e) => e.key === "Escape" && (showMenu = false)} />
+<svelte:window onkeydown={(e) => { if (e.key === "Escape") void closeMenu(); }} />
 
-<div class="stage" onpointerdown={startDrag} onpointermove={drag} onpointerup={stopDrag}>
+<div class="stage" ondblclick={() => void openMenu()} oncontextmenu={(e) => { e.preventDefault(); void openMenu(); }} onpointerdown={startDrag} onpointermove={drag} onpointerup={stopDrag}>
   <canvas bind:this={canvas}></canvas>
   <div class="bubble">{t(lang, "idle")}</div>
   {#if showMenu}
@@ -262,7 +281,7 @@
           </button>
         {/if}
       </div>
-      <button onclick={toggleThrough}>✓</button>
+      <button onclick={toggleThrough}>{clickThrough ? "Disable click-through" : "Enable click-through"}</button>
     </div>
   {/if}
 </div>
