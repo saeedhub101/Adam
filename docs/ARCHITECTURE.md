@@ -46,7 +46,7 @@ CI source/build checks do not by themselves prove that a Windows installer was i
 
 ### Reproducibility boundary
 
-The repository currently has no committed `package-lock.json`, so CI uses `npm install`. Full lockfile-reproducible dependency installation remains a documented follow-up until a lockfile is committed.
+The repository commits `package-lock.json`, and Windows CI uses `npm ci` for lockfile-reproducible dependency installation.
 
 ### Release signing boundary
 
@@ -75,12 +75,14 @@ The animation layer:
 - detects imported animation clips
 - cross-fades between clips
 - indexes common character bones
-- applies procedural breathing/head/arm idle motion when no imported clip is active
-- supports generic GLB/GLTF rigs without requiring one fixed bone hierarchy
+- applies procedural breathing/head/body motion and full limb fallback motion when an imported locomotion clip is unavailable
+- keeps procedural offsets separate from AnimationMixer updates to avoid frame-to-frame bone drift/conflicts
+- supports one-shot gesture fallback and automatic recovery to idle
+- supports generic GLB/GLTF/FBX rigs without requiring one fixed bone hierarchy
 
 ## Phase 3 — Voice
 
-Voice capabilities include bilingual English/Arabic recognition and speech synthesis, microphone state, transcript handling, local model management and speech interruption behavior. Full offline model packaging and production-grade lip-sync/viseme coverage remain separate implementation concerns.
+Voice capabilities include bilingual English/Arabic recognition and speech synthesis, microphone state, transcript handling, local Whisper model management, VAD, speech interruption behavior, and character talking/viseme-driven mouth animation. Model assets are cache/remote managed by Transformers.js; fully bundled offline model distribution remains a packaging-size decision rather than a build blocker.
 
 ## Phase 4 — Local Brain & Memory
 
@@ -88,7 +90,7 @@ The local path uses SQLite-backed memory, reminders and calendar data. The inten
 
 `User → Local Brain → execute locally when understood → otherwise Cloud Brain → offline fallback if cloud is unavailable.`
 
-Local execution must be implemented through explicit native commands rather than generic text-only responses.
+Local execution is implemented through explicit native commands rather than generic text-only responses. The router covers local memory, notes, reminders, calendar, time/greetings and permission-gated application opening, with cloud routing and offline fallback handled in the UI.
 
 ## Phase 5 — Cloud Brain
 

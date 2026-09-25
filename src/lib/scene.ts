@@ -52,6 +52,9 @@ export class AdamScene {
   private idleIndex = -1;
   private locomotion = 0;
   private idleTime = 0;
+  private talkTime = 0;
+  private proceduralOffsets = new Map<THREE.Object3D, THREE.Euler>();
+  private gestureTime = 0;
   private caps: CharacterCapabilities = { loaded: false, hasRig: false, hasAnimations: false, hasFacialMorphs: false, animationCount: 0, boneMap: {} };
 
   constructor(canvas: HTMLCanvasElement) {
@@ -83,8 +86,8 @@ export class AdamScene {
 
   private reset() {
     this.root.clear(); this.mixer?.stopAllAction(); this.mixer = undefined; this.actions = []; this.active = undefined; this.model = undefined;
-    this.bones.clear(); this.aliases.clear(); this.bases.clear(); this.morphs = []; this.blinks = []; this.stateIndex.clear(); this.gestures = [];
-    this.emotion = "neutral"; this.talking = false; this.blinkTimer = 2.5; this.blinkValue = 0; this.state = "idle"; this.idleIndex = -1; this.idleTime = 0; this.locomotion = 0;
+    this.bones.clear(); this.aliases.clear(); this.bases.clear(); this.morphs = []; this.blinks = []; this.stateIndex.clear(); this.gestures = []; this.proceduralOffsets.clear();
+    this.emotion = "neutral"; this.talking = false; this.talkTime = 0; this.blinkTimer = 2.5; this.blinkValue = 0; this.state = "idle"; this.idleIndex = -1; this.idleTime = 0; this.locomotion = 0;
     this.caps = { loaded: false, hasRig: false, hasAnimations: false, hasFacialMorphs: false, animationCount: 0, boneMap: {} };
   }
 
@@ -132,11 +135,11 @@ export class AdamScene {
 
   setEmotion(e: Emotion) { this.emotion = e; }
   getEmotion() { return this.emotion; }
-  setTalking(v: boolean) { this.talking = v; if (v) this.emotion = "speaking"; else if (this.emotion === "speaking") this.emotion = "neutral"; }
+  setTalking(v: boolean) { this.talking = v; if (!v) this.talkTime = 0; if (v) this.emotion = "speaking"; else if (this.emotion === "speaking") this.emotion = "neutral"; }
   queueGesture(name: string) { if (name.trim()) this.gestures.push(name.trim().toLowerCase()); }
   getAnimationState() { return this.state; }
   getLocomotionDistance() { return this.locomotion; }
-  setState(s: State) { this.state = s; const i = this.stateIndex.get(s); if (i !== undefined) this.play(i); else if (s === "idle" && this.idleIndex >= 0) this.play(this.idleIndex); this.idleTime = 0; }
+  setState(s: State) { this.gestureTime = 0; this.state = s; const i = this.stateIndex.get(s); if (i !== undefined) this.play(i); else if (s === "idle" && this.idleIndex >= 0) this.play(this.idleIndex); this.idleTime = 0; }
   listAnimations() { return this.actions.map((a) => a.getClip().name); }
   playAnimationByName(name: string) { const i = this.actions.findIndex((a) => a.getClip().name.toLowerCase().includes(name.toLowerCase())); if (i >= 0) this.play(i); }
 
@@ -159,8 +162,9 @@ export class AdamScene {
   }
 
   private applyEmotion(dt: number) {
-    const pattern = this.emotion === "happy" ? /smile|happy|joy/ : this.emotion === "surprised" ? /surpris|wide|oh/ : this.emotion === "confused" ? /confus|frown|sad/ : this.emotion === "thinking" ? /think|brow/ : this.emotion === "speaking" ? /mouth|jaw|open|speech|talk|viseme/ : /$a/;
-    for (const m of this.morphs) { const target = pattern.test(m.name) ? (this.emotion === "speaking" ? 0.15 : 0.35) : 0; if (m.mesh.morphTargetInfluences) m.mesh.morphTargetInfluences[m.index] = THREE.MathUtils.lerp(m.mesh.morphTargetInfluences[m.index] ?? 0, target, Math.min(1, dt * 10)); }
+    if (this.talking) this.talkTime += dt;
+    const pattern = this.emotion === "happy" ? /smile|happy|joy/ : this.emotion === "surprised" ? /surpris|wide|oh/ : this.emotion === "confused" ? /confus|frown|sad/ : this.emotion === "thinking" ? /think|brow/ : this.emotion === "speaking" ? /mouth|jaw|open|speech|talk|viseme|aa|ah|ee|oh|ou/ : /$a/;
+    for (const m of this.morphs) { let target = pattern.test(m.name) ? (this.emotion === "speaking" ? 0.15 : 0.35) : 0; if (this.talking && /viseme|mouth|jaw|open|speech|talk|aa|ah|ee|oh|ou/.test(m.name)) target = 0.06 + Math.max(0, Math.sin(this.talkTime * (5.5 + (m.index % 3)))) * 0.18; if (m.mesh.morphTargetInfluences) m.mesh.morphTargetInfluences[m.index] = THREE.MathUtils.lerp(m.mesh.morphTargetInfluences[m.index] ?? 0, target, Math.min(1, dt * 12)); }
   }
 
   private applyBlink(dt: number) {
@@ -171,14 +175,23 @@ export class AdamScene {
     for (const b of this.blinks) if (b.mesh.morphTargetInfluences) b.mesh.morphTargetInfluences[b.index] = THREE.MathUtils.lerp(b.mesh.morphTargetInfluences[b.index] ?? 0, this.blinkValue, Math.min(1, dt * 24));
   }
 
+  private removeProcedural() {
+    for (const [bone, offset] of this.proceduralOffsets) { bone.rotation.x -= offset.x; bone.rotation.y -= offset.y; bone.rotation.z -= offset.z; }
+    this.proceduralOffsets.clear();
+  }
+
   private applyProcedural(dt: number) {
     if (!this.model || !this.caps.hasRig) return;
     this.idleTime += dt; const t = this.idleTime;
-    const set = (key: string, axis: "x" | "y" | "z", value: number) => { const bone = this.aliases.get(key); const base = bone ? this.bases.get(bone) : undefined; if (bone && base) bone.rotation[axis] = base[axis] + value; };
+    const set = (key: string, axis: "x" | "y" | "z", value: number) => { const bone = this.aliases.get(key); if (!bone || !value) return; const offset = this.proceduralOffsets.get(bone) ?? new THREE.Euler(0, 0, 0); offset[axis] += value; this.proceduralOffsets.set(bone, offset); bone.rotation[axis] += value; };
     set("spine", "x", Math.sin(t * 1.7) * 0.018); set("neck", "z", Math.sin(t * 0.65) * 0.006); set("head", "y", Math.sin(t * 0.48) * 0.018); set("head", "x", Math.sin(t * 0.82) * 0.012);
-    if (this.state === "walk" || this.state === "run") { const speed = this.state === "run" ? 4.2 : 2.6; const amp = this.state === "run" ? 0.55 : 0.32; const swing = Math.sin(t * speed) * amp; set("leftLeg", "x", swing); set("rightLeg", "x", -swing); set("leftArm", "x", -swing * 0.35); set("rightArm", "x", swing * 0.35); this.locomotion += Math.abs(swing) * dt * (this.state === "run" ? 1.4 : 0.8); }
+    const activeClip = this.active?.isRunning() ?? false;
+    if (!activeClip && (this.state === "walk" || this.state === "run")) {
+      const speed = this.state === "run" ? 4.2 : 2.6; const amp = this.state === "run" ? 0.55 : 0.32; const swing = Math.sin(t * speed) * amp;
+      set("leftUpLeg", "x", swing); set("rightUpLeg", "x", -swing); set("leftLeg", "x", -swing * 0.65); set("rightLeg", "x", swing * 0.65); set("leftArm", "x", -swing * 0.35); set("rightArm", "x", swing * 0.35); set("leftForeArm", "x", -swing * 0.18); set("rightForeArm", "x", swing * 0.18); set("leftHand", "z", Math.sin(t * speed) * 0.05); set("rightHand", "z", -Math.sin(t * speed) * 0.05); set("leftFoot", "x", swing * 0.25); set("rightFoot", "x", -swing * 0.25); this.locomotion += Math.abs(swing) * dt * (this.state === "run" ? 1.4 : 0.8);
+    }
+    if (!activeClip && this.state === "gesture") { this.gestureTime += dt; const wave = Math.sin(this.gestureTime * 8) * Math.min(0.45, this.gestureTime * 2); set("rightArm", "z", -0.25); set("rightForeArm", "z", -0.2); set("rightHand", "y", wave); if (this.gestureTime >= 1.2) { this.gestureTime = 0; this.state = "idle"; } } else if (this.state !== "gesture") this.gestureTime = 0;
   }
-
   private fallback() {
     const group = new THREE.Group();
     const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.42, 1, 6, 16), new THREE.MeshStandardMaterial({ color: 0x4f7cff }));
@@ -194,7 +207,7 @@ export class AdamScene {
   private animate = () => {
     requestAnimationFrame(this.animate);
     const dt = Math.min(this.clock.getDelta(), 0.05);
-    this.mixer?.update(dt); this.applyProcedural(dt); this.applyEmotion(dt); this.applyBlink(dt);
+    this.removeProcedural(); this.mixer?.update(dt); this.applyProcedural(dt); this.applyEmotion(dt); this.applyBlink(dt);
     if (this.state === "gesture" && this.active && !this.active.isRunning()) { this.active = undefined; this.state = "idle"; if (this.idleIndex >= 0) this.play(this.idleIndex); }
     if (this.gestures.length && (!this.active || this.state === "idle")) { const gesture = this.gestures.shift(); if (gesture) { this.state = "gesture"; this.playAnimationByName(gesture); } }
     if (!this.contextLost) this.renderer.render(this.scene, this.camera);

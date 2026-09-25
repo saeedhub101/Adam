@@ -44,6 +44,27 @@ jobs:
         run: cargo fmt --all --manifest-path src-tauri/Cargo.toml -- --check
       - name: Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml
+      - name: Verify Phase 2-4 completion gates
+        shell: pwsh
+        run: |
+          $checks = @{
+            "Phase 2 animation/procedural pipeline" = @("src/lib/scene.ts", "removeProcedural", "applyProcedural", "leftForeArm", "rightForeArm", "gestureTime")
+            "Phase 3 voice pipeline" = @("src/lib/voice.ts", "getUserMedia", "finish", "src/lib/model_manager.ts", "pipeline")
+            "Phase 4 local brain" = @("src-tauri/src/local_brain.rs", "detect_intent", "local_brain_execute", "src-tauri/src/agent.rs", "computer.open")
+            "Phase 4 persistence" = @("src-tauri/src/memory.rs", "src-tauri/src/reminders.rs", "src-tauri/src/calendar.rs", "src-tauri/src/permissions.rs")
+          }
+          if (-not (Select-String -Path "src-tauri/src/main.rs" -Pattern "local_brain_execute|agent_route|memory_add|reminder_add|calendar_list" -Quiet)) { throw "Phase 4 native command boundary is incomplete." }
+          if (-not (Select-String -Path "src/App.svelte" -Pattern "agent_route|local_brain_execute|cloudChatStream|offlineFallback" -Quiet)) { throw "Phase 4 frontend routing is incomplete." }
+          if (-not (Select-String -Path "src/lib/scene.ts" -Pattern "setTalking|viseme|applyBlink" -Quiet)) { throw "Phase 3 character speech integration is incomplete." }
+          foreach ($entry in $checks.GetEnumerator()) {
+            $items = $entry.Value
+            $file = $items[0]
+            if (-not (Test-Path $file)) { throw "Missing gate file: $file" }
+            foreach ($pattern in $items[1..($items.Count-1)]) {
+              if (-not (Select-String -Path $file -Pattern $pattern -Quiet)) { throw "Missing $($entry.Key) marker: $pattern" }
+            }
+          }
+          Write-Host "Phase 2-4 source acceptance gates passed."
       - name: Tauri Windows production build
         run: npm run tauri build
       - name: Verify Phase 0/1 packaging configuration
