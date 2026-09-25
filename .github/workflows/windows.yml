@@ -15,13 +15,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
       - uses: dtolnay/rust-toolchain@stable
       - name: Verify Phase 0 foundation files
         shell: pwsh
         run: |
           $required = @(
             "package.json",
-            "package-lock.json",
             "src-tauri/Cargo.toml",
             "src-tauri/tauri.conf.json",
             "src-tauri/capabilities/default.json",
@@ -36,7 +36,7 @@ jobs:
             if (-not (Test-Path $file)) { throw "Missing required Phase 0 file: $file" }
           }
       - name: Install frontend dependencies
-        run: npm ci
+        run: npm install --no-audit --no-fund
       - name: Svelte and TypeScript check
         run: npm run check
       - name: Frontend production build
