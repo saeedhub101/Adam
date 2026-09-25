@@ -10,9 +10,9 @@ pub struct CaptureResult {
 
 #[cfg(target_os = "windows")]
 pub fn capture_desktop() -> Result<CaptureResult, String> {
-    use windows::Win32::Foundation::{HWND, RECT};
+    use windows::Win32::Foundation::HWND;
     use windows::Win32::Graphics::Gdi::*;
-    use windows::Win32::UI::WindowsAndMessaging::{GetDesktopWindow, GetSystemMetrics, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN};
+    use windows::Win32::UI::WindowsAndMessaging::{GetDC, GetDesktopWindow, GetSystemMetrics, ReleaseDC, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN};
 
     unsafe {
         let hwnd: HWND = GetDesktopWindow();
