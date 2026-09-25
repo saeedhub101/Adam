@@ -10,7 +10,22 @@ pub fn init(path: &Path) -> Result<(), String> {
          CREATE TABLE IF NOT EXISTS reminders (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, due_at TEXT NOT NULL, completed INTEGER NOT NULL DEFAULT 0, notified INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
          CREATE INDEX IF NOT EXISTS idx_reminders_due ON reminders(completed, due_at);"
     ).map_err(|e| e.to_string())?;
-    let _ = conn.execute("ALTER TABLE reminders ADD COLUMN notified INTEGER NOT NULL DEFAULT 0", []);
+    let has_notified: bool = {
+        let mut stmt = conn
+            .prepare("PRAGMA table_info(reminders)")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |row| row.get::<_, String>(1))
+            .map_err(|e| e.to_string())?;
+        rows.filter_map(Result::ok).any(|name| name == "notified")
+    };
+    if !has_notified {
+        conn.execute(
+            "ALTER TABLE reminders ADD COLUMN notified INTEGER NOT NULL DEFAULT 0",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+    }
     Ok(())
 }
 
