@@ -128,6 +128,10 @@ export class AdamScene {
     const neck = this.findBone("neck");
     const leftArm = this.findBone("leftarm", "left_arm", "leftupperarm");
     const rightArm = this.findBone("rightarm", "right_arm", "rightupperarm");
+    const leftLeg = this.findBone("leftleg", "left_leg", "leftlowerleg");
+    const rightLeg = this.findBone("rightleg", "right_leg", "rightlowerleg");
+    const leftFoot = this.findBone("leftfoot", "left_foot");
+    const rightFoot = this.findBone("rightfoot", "right_foot");
     const breathe = Math.sin(t * 1.7) * 0.018;
     const sway = Math.sin(t * 0.65) * 0.012;
     const setDelta = (bone: THREE.Object3D | undefined, axis: "x" | "y" | "z", value: number) => {
@@ -142,6 +146,11 @@ export class AdamScene {
     setDelta(head, "x", Math.sin(t * 0.82 + 1.1) * 0.012);
     setDelta(leftArm, "z", Math.sin(t * 1.1) * 0.008);
     setDelta(rightArm, "z", -Math.sin(t * 1.1) * 0.008);
+    const step = Math.sin(t * 1.35) * 0.006;
+    setDelta(leftLeg, "x", step);
+    setDelta(rightLeg, "x", -step);
+    setDelta(leftFoot, "x", -step * 0.5);
+    setDelta(rightFoot, "x", step * 0.5);
   }
 
   createFallback() {
