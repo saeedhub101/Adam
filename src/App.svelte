@@ -4,12 +4,17 @@
   import { AdamScene } from "./lib/scene";
   import { setCharacterSize, setIgnoreCursorEvents, savePosition, loadPosition } from "./lib/desktop";
   import { addMemory, listMemories, searchMemories, type Memory } from "./lib/memory";
+  import { addReminder, listReminders, completeReminder, type Reminder } from "./lib/reminders";
 
   let memories: Memory[] = [];
   let memoryQuery = "";
   let memoryOpen = false;
   let dragX = 0;
   let dragY = 0;
+  let reminders: Reminder[] = [];
+  let reminderOpen = false;
+  let reminderTitle = "";
+  let reminderDue = "";
 
   let canvas: HTMLCanvasElement;
   let scene: AdamScene;
@@ -78,6 +83,15 @@
     input.click();
   }
 
+  async function refreshReminders() { reminders = await listReminders(); }
+
+  async function createReminder() {
+    if (!reminderTitle.trim() || !reminderDue) return;
+    await addReminder(reminderTitle.trim(), new Date(reminderDue).toISOString());
+    reminderTitle = ""; reminderDue = "";
+    await refreshReminders();
+  }
+
   async function resizeAdam() {
     await setCharacterSize(size);
     scene?.resize();
@@ -118,6 +132,24 @@
       <button class:active={listening} on:click|stopPropagation={toggleVoice}>{listening ? "● " : "🎙 "} {listening ? (lang === "ar" ? "استماع..." : "Listening...") : (lang === "ar" ? "الميكروفون" : "Microphone")}</button>
       {#if transcript}<div class="transcript">{transcript}</div>{/if}
       <div class="memory-panel">
+        <button on:click|stopPropagation={async () => { reminderOpen = !reminderOpen; if (reminderOpen) await refreshReminders(); }}>
+          {lang === "ar" ? "تذكيرات" : "Reminders"}
+        </button>
+        {#if reminderOpen}
+          <div class="reminder-panel">
+            <input placeholder={lang === "ar" ? "عنوان التذكير" : "Reminder title"} bind:value={reminderTitle} />
+            <input type="datetime-local" bind:value={reminderDue} />
+            <button on:click|stopPropagation={createReminder}>{lang === "ar" ? "إضافة" : "Add"}</button>
+            {#each reminders.slice(0, 8) as reminder}
+              <div class:completed={reminder.completed} class="reminder-item">
+                <span>{reminder.title}</span>
+                <small>{new Date(reminder.dueAt).toLocaleString()}</small>
+                {#if !reminder.completed}<button on:click|stopPropagation={async () => { await completeReminder(reminder.id); await refreshReminders(); }}>✓</button>{/if}
+              </div>
+            {/each}
+          </div>
+        {/if}
+
         <input placeholder={lang === "ar" ? "ابحث في الذاكرة" : "Search memory"} bind:value={memoryQuery} />
 <button on:click|stopPropagation={async () => { memoryOpen = !memoryOpen; if (memoryOpen) memories = memoryQuery.trim() ? await searchMemories(memoryQuery) : await listMemories(); }}>
           {lang === "ar" ? "ذاكرة" : "Memory"}
