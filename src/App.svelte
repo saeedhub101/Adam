@@ -15,7 +15,8 @@
   let reminders: Reminder[] = [];
   let reminderOpen = false;
   let reminderTitle = "";
-  let reminderDue = "";\n  let chatOpen = false; let chatInput = ""; let chatReply = ""; let cloudKey = ""; let cloudReady = false; let chatBusy = false;
+  let reminderDue = "";
+  let chatOpen = false; let chatInput = ""; let chatReply = ""; let cloudKey = ""; let cloudReady = false; let chatBusy = false;
   let provider = "openai"; let model = "gpt-4o-mini";
   let persona = "You are Adam, a helpful desktop AI companion. Be concise, friendly, and practical.";
   let offlineFallback = true; let customBaseUrl = "";
@@ -71,7 +72,8 @@
     setupVoice();
     await scene.load("/adam.glb");
     window.addEventListener("resize", () => scene.resize());
-    const position = await loadPosition(); if (position) await savePosition(position.x, position.y);\n    cloudReady = await hasApiKey();
+    const position = await loadPosition(); if (position) await savePosition(position.x, position.y);
+    cloudReady = await hasApiKey();
     try { const cfg = JSON.parse(localStorage.getItem("adam-cloud-config") || "{}"); provider = cfg.provider ?? provider; model = cfg.model ?? model; customBaseUrl = cfg.customBaseUrl ?? ""; persona = cfg.persona ?? persona; offlineFallback = cfg.offlineFallback ?? true; } catch {}
     await setIgnoreCursorEvents(false);
   });
@@ -98,11 +100,14 @@
     await refreshReminders();
   }
 
-  async function saveCloudKey() { if (!cloudKey.trim()) return; await saveApiKey(cloudKey); cloudKey = ""; cloudReady = true; }\n  function activeConfig() { const p = providers[provider as keyof typeof providers]; return { baseUrl: provider === "custom" ? customBaseUrl : p.baseUrl, model: model || p.model }; }
+  async function saveCloudKey() { if (!cloudKey.trim()) return; await saveApiKey(cloudKey); cloudKey = ""; cloudReady = true; }
+  function activeConfig() { const p = providers[provider as keyof typeof providers]; return { baseUrl: provider === "custom" ? customBaseUrl : p.baseUrl, model: model || p.model }; }
   function saveCloudConfig() { localStorage.setItem("adam-cloud-config", JSON.stringify({ provider, model, customBaseUrl, persona, offlineFallback })); chatReply = lang === "ar" ? "تم حفظ الإعدادات." : "AI settings saved."; }
   function selectProvider() { const p = providers[provider as keyof typeof providers]; if (provider !== "custom") model = p.model; }
   function offlineReply(input: string) { const q = input.toLowerCase(); if (q.includes("hello") || q.includes("hi") || q.includes("مرحبا")) return lang === "ar" ? "مرحباً، أنا آدم. أعمل حالياً في الوضع المحلي." : "Hello, I’m Adam. I’m currently working in local mode."; if (q.includes("time") || q.includes("الوقت")) return new Date().toLocaleString(); return lang === "ar" ? "لا أستطيع الوصول إلى نموذج السحابة الآن، لكنني ما زلت متاحاً للمهام المحلية والذاكرة والتذكيرات." : "I can’t reach the cloud model now, but memory and reminders are still available."; }
-  async function sendChat() { if (!chatInput.trim() || chatBusy) return; const input = chatInput.trim(); chatInput = ""; chatBusy = true; try { if (!cloudReady) { chatReply = offlineFallback ? offlineReply(input) : "API key is not configured."; return; } const cfg = activeConfig(); if (!cfg.baseUrl || !cfg.model) throw new Error("Provider URL and model are required."); const messages: ChatMessage[] = [{ role: "system", content: persona + " Reply in " + (lang === "ar" ? "Arabic" : "English") + " unless the user asks otherwise." }, { role: "user", content: input }]; chatReply = await cloudChat(cfg, messages); } catch (e) { chatReply = offlineFallback ? offlineReply(input) : String(e); } finally { chatBusy = false; } }\n\n  async function resizeAdam() {
+  async function sendChat() { if (!chatInput.trim() || chatBusy) return; const input = chatInput.trim(); chatInput = ""; chatBusy = true; try { if (!cloudReady) { chatReply = offlineFallback ? offlineReply(input) : "API key is not configured."; return; } const cfg = activeConfig(); if (!cfg.baseUrl || !cfg.model) throw new Error("Provider URL and model are required."); const messages: ChatMessage[] = [{ role: "system", content: persona + " Reply in " + (lang === "ar" ? "Arabic" : "English") + " unless the user asks otherwise." }, { role: "user", content: input }]; chatReply = await cloudChat(cfg, messages); } catch (e) { chatReply = offlineFallback ? offlineReply(input) : String(e); } finally { chatBusy = false; } }
+
+  async function resizeAdam() {
     await setCharacterSize(size);
     scene?.resize();
   }
@@ -139,13 +144,15 @@
       <button on:click|stopPropagation={chooseCharacter}>{t(lang,"changeCharacter")}</button>
       <label>{t(lang,"size")} {size}% <input type="range" min="60" max="160" bind:value={size} on:input={resizeAdam}/></label>
       <button on:click|stopPropagation={() => { lang = lang === "en" ? "ar" : "en"; setupVoice(); }}>{lang === "en" ? "العربية" : "English"}</button>
-      <button on:click|stopPropagation={() => chatOpen = !chatOpen}>{lang === "ar" ? "محادثة الذكاء الاصطناعي" : "AI Chat"}</button>\n      {#if chatOpen}<div class="chat-panel">
+      <button on:click|stopPropagation={() => chatOpen = !chatOpen}>{lang === "ar" ? "محادثة الذكاء الاصطناعي" : "AI Chat"}</button>
+      {#if chatOpen}<div class="chat-panel">
           <label>Provider <select bind:value={provider} on:change={selectProvider}>{#each Object.entries(providers) as [key, p]}<option value={key}>{p.name}</option>{/each}</select></label>
           {#if provider === "custom"}<input placeholder="https://your-provider/v1" bind:value={customBaseUrl} />{/if}
           <input placeholder="Model" bind:value={model} />
           <textarea rows="2" placeholder="Adam persona" bind:value={persona}></textarea>
           <label><input type="checkbox" bind:checked={offlineFallback} /> Offline fallback</label>
-          <button on:click|stopPropagation={saveCloudConfig}>Save AI settings</button>{#if !cloudReady}<input type="password" placeholder="API key" bind:value={cloudKey} /><button on:click|stopPropagation={saveCloudKey}>Save key</button>{:else}<input placeholder={lang === "ar" ? "اكتب لآدم" : "Message Adam"} bind:value={chatInput} on:keydown={(e) => e.key === "Enter" && sendChat()} /><button disabled={chatBusy} on:click|stopPropagation={sendChat}>{chatBusy ? "..." : "Send"}</button><button on:click|stopPropagation={async () => { await deleteApiKey(); cloudReady = false; }}>Remove key</button>{/if}{#if chatReply}<div class="chat-reply">{chatReply}</div>{/if}</div>{/if}\n      <button class:active={listening} on:click|stopPropagation={toggleVoice}>{listening ? "● " : "🎙 "} {listening ? (lang === "ar" ? "استماع..." : "Listening...") : (lang === "ar" ? "الميكروفون" : "Microphone")}</button>
+          <button on:click|stopPropagation={saveCloudConfig}>Save AI settings</button>{#if !cloudReady}<input type="password" placeholder="API key" bind:value={cloudKey} /><button on:click|stopPropagation={saveCloudKey}>Save key</button>{:else}<input placeholder={lang === "ar" ? "اكتب لآدم" : "Message Adam"} bind:value={chatInput} on:keydown={(e) => e.key === "Enter" && sendChat()} /><button disabled={chatBusy} on:click|stopPropagation={sendChat}>{chatBusy ? "..." : "Send"}</button><button on:click|stopPropagation={async () => { await deleteApiKey(); cloudReady = false; }}>Remove key</button>{/if}{#if chatReply}<div class="chat-reply">{chatReply}</div>{/if}</div>{/if}
+      <button class:active={listening} on:click|stopPropagation={toggleVoice}>{listening ? "● " : "🎙 "} {listening ? (lang === "ar" ? "استماع..." : "Listening...") : (lang === "ar" ? "الميكروفون" : "Microphone")}</button>
       {#if transcript}<div class="transcript">{transcript}</div>{/if}
       <div class="memory-panel">
         <button on:click|stopPropagation={async () => { reminderOpen = !reminderOpen; if (reminderOpen) await refreshReminders(); }}>
