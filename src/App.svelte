@@ -3,6 +3,10 @@
   import { t, type Lang } from "./lib/i18n";
   import { AdamScene } from "./lib/scene";
   import { setCharacterSize, setIgnoreCursorEvents, savePosition, loadPosition } from "./lib/desktop";
+  import { addMemory, listMemories, searchMemories, type Memory } from "./lib/memory";
+
+  let memories: Memory[] = [];
+  let memoryQuery = "";
 
   let canvas: HTMLCanvasElement;
   let scene: AdamScene;
@@ -107,6 +111,20 @@
       <button on:click|stopPropagation={() => { lang = lang === "en" ? "ar" : "en"; setupVoice(); }}>{lang === "en" ? "العربية" : "English"}</button>
       <button class:active={listening} on:click|stopPropagation={toggleVoice}>{listening ? "● " : "🎙 "} {listening ? (lang === "ar" ? "استماع..." : "Listening...") : (lang === "ar" ? "الميكروفون" : "Microphone")}</button>
       {#if transcript}<div class="transcript">{transcript}</div>{/if}
+      <div class="memory-panel">
+        <input placeholder={lang === "ar" ? "ابحث في الذاكرة" : "Search memory"} bind:value={memoryQuery} />
+        <button on:click|stopPropagation={async () => { memories = memoryQuery.trim() ? await searchMemories(memoryQuery) : await listMemories(); }}>
+          {lang === "ar" ? "ذاكرة" : "Memory"}
+        </button>
+        {#each memories.slice(0, 5) as memory}
+          <div class="memory-item">{memory.content}</div>
+        {/each}
+        {#if transcript}
+          <button on:click|stopPropagation={async () => { await addMemory(transcript, "voice"); memories = await listMemories(); }}>
+            {lang === "ar" ? "حفظ الكلام" : "Save transcript"}
+          </button>
+        {/if}
+      </div>
       <button on:click|stopPropagation={toggleThrough}>✓</button>
     </div>
   {/if}
