@@ -55,6 +55,7 @@ export class AdamScene {
   private talkTime = 0;
   private proceduralOffsets = new Map<THREE.Object3D, THREE.Euler>();
   private gestureTime = 0;
+  private modelAspect = 0.62;
   private caps: CharacterCapabilities = { loaded: false, hasRig: false, hasAnimations: false, hasFacialMorphs: false, animationCount: 0, boneMap: {} };
 
   constructor(canvas: HTMLCanvasElement) {
@@ -76,6 +77,12 @@ export class AdamScene {
   }
 
   getCapabilities() { return { ...this.caps, boneMap: { ...this.caps.boneMap } }; }
+  getPreferredWindowSize(scalePercent = 100) {
+    const scale = THREE.MathUtils.clamp(scalePercent / 100, 0.6, 1.6);
+    const height = Math.round(470 * scale);
+    const width = Math.round(THREE.MathUtils.clamp(height * this.modelAspect, 190, 520));
+    return { width, height };
+  }
   getRenderStatus() { return { contextLost: this.contextLost, quality: this.quality, pixelRatio: this.renderer.getPixelRatio(), webgl2: this.renderer.capabilities.isWebGL2 }; }
   setQuality(q: "auto" | "low" | "medium" | "high") {
     this.quality = q;
@@ -88,6 +95,7 @@ export class AdamScene {
     this.root.clear(); this.mixer?.stopAllAction(); this.mixer = undefined; this.actions = []; this.active = undefined; this.model = undefined;
     this.bones.clear(); this.aliases.clear(); this.bases.clear(); this.morphs = []; this.blinks = []; this.stateIndex.clear(); this.gestures = []; this.proceduralOffsets.clear();
     this.emotion = "neutral"; this.talking = false; this.talkTime = 0; this.blinkTimer = 2.5; this.blinkValue = 0; this.state = "idle"; this.idleIndex = -1; this.idleTime = 0; this.locomotion = 0;
+    this.modelAspect = 0.62;
     this.caps = { loaded: false, hasRig: false, hasAnimations: false, hasFacialMorphs: false, animationCount: 0, boneMap: {} };
   }
 
@@ -200,8 +208,28 @@ export class AdamScene {
     this.caps = { loaded: true, hasRig: false, hasAnimations: false, hasFacialMorphs: false, animationCount: 0, boneMap: {} };
   }
 
-  private fit(obj: THREE.Object3D) { obj.updateWorldMatrix(true, true); const box = new THREE.Box3().setFromObject(obj); const center = box.getCenter(new THREE.Vector3()); const size = box.getSize(new THREE.Vector3()); obj.position.sub(center); obj.scale.setScalar(1.7 / Math.max(size.x, size.y, size.z, 0.01)); }
-  resize() { const w = this.renderer.domElement.clientWidth || 360; const h = this.renderer.domElement.clientHeight || 520; const aspect = w / h; this.camera.left = -aspect; this.camera.right = aspect; this.camera.top = 1; this.camera.bottom = -1; this.camera.updateProjectionMatrix(); this.renderer.setSize(Math.max(1, w), Math.max(1, h), false); }
+  private fit(obj: THREE.Object3D) {
+    obj.updateWorldMatrix(true, true);
+    const box = new THREE.Box3().setFromObject(obj);
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+    this.modelAspect = THREE.MathUtils.clamp(size.x / Math.max(size.y, 0.01), 0.35, 1.4);
+    obj.position.sub(center);
+    obj.scale.setScalar(1.72 / Math.max(size.y, 0.01));
+  }
+  resize() {
+    const w = this.renderer.domElement.clientWidth || 300;
+    const h = this.renderer.domElement.clientHeight || 470;
+    const aspect = w / h;
+    const halfHeight = 0.94;
+    const halfWidth = Math.max(halfHeight * aspect, 0.86 * this.modelAspect);
+    this.camera.left = -halfWidth;
+    this.camera.right = halfWidth;
+    this.camera.top = halfHeight;
+    this.camera.bottom = -halfHeight;
+    this.camera.updateProjectionMatrix();
+    this.renderer.setSize(Math.max(1, w), Math.max(1, h), false);
+  }
   dispose() { this.urls.forEach(URL.revokeObjectURL); this.urls = []; this.root.clear(); this.renderer.dispose(); }
 
   private animate = () => {
