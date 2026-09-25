@@ -101,14 +101,32 @@ export class AdamScene {
     if (!this.actions.length) return;
     const next = this.actions[Math.max(0, Math.min(index, this.actions.length - 1))];
     if (this.activeAction === next) return;
-    next.reset().fadeIn(0.25).play();
     this.activeAction?.fadeOut(0.25);
+    next.reset().setEffectiveWeight(1).setEffectiveTimeScale(1).fadeIn(0.25).play();
     this.activeAction = next;
+    this.idleTime = 0;
+  }
+
+  playAnimationByName(name: string) {
+    const index = this.actions.findIndex((action, i) => {
+      const clipName = this.actions[i]?.getClip().name ?? "";
+      return clipName.toLowerCase() === name.toLowerCase() || clipName.toLowerCase().includes(name.toLowerCase());
+    });
+    if (index >= 0) this.playAnimation(index);
+  }
+
+  pauseAnimation() {
+    if (this.activeAction) this.activeAction.paused = true;
+  }
+
+  resumeAnimation() {
+    if (this.activeAction) this.activeAction.paused = false;
   }
 
   stopAnimation() {
     this.activeAction?.fadeOut(0.2);
     this.activeAction = undefined;
+    this.idleTime = 0;
   }
 
   private findBone(...names: string[]) {
