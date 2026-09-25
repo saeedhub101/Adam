@@ -5,7 +5,7 @@ Adam is a Windows desktop AI companion.
 ## Phase status
 - Phase 0 Foundation: source + CI scaffold implemented.
 - Phase 1 Character on desktop: source implemented; Windows CI builds the NSIS installer.
-- Phase 2 Animation: animation controller implemented; GLB/GLTF animation clips are detected and cross-faded, with procedural idle motion when no clip is active.
+- Phase 3 Voice: bilingual English/Arabic speech recognition and speech synthesis are integrated through the WebView voice APIs, with microphone state and transcript display.\n- Phase 2 Animation: animation controller implemented; GLB/GLTF animation clips are detected and cross-faded, with procedural idle motion when no clip is active.
 
 ## Requirements
 Windows 10 22H2 or Windows 11 x64, Node.js LTS, Rust stable, Microsoft C++ Build Tools and WebView2.
