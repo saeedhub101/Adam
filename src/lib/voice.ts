@@ -1,6 +1,7 @@
 import { localModelManager } from "./model_manager";
 type Status = "idle" | "loading" | "ready" | "error";
 type ResultHandler = (text: string) => Promise<void> | void;
+type LevelHandler = (level: number) => void;
 
 export class LocalWhisperVoice {
   private recognizer: any;
@@ -17,8 +18,9 @@ export class LocalWhisperVoice {
   status: Status = "idle";
   error = "";
   private statusCb: (status: Status) => void;
+  private levelCb?: LevelHandler;
 
-  constructor(statusCb: (status: Status) => void) { this.statusCb = statusCb; }
+  constructor(statusCb: (status: Status) => void, levelCb?: LevelHandler) { this.statusCb = statusCb; this.levelCb = levelCb; }
 
   async load(): Promise<void> {
     if (this.recognizer) return;
@@ -46,7 +48,7 @@ export class LocalWhisperVoice {
     this.audio = new AudioContext({ sampleRate: 16000 });
     this.source = this.audio.createMediaStreamSource(this.stream);
     this.processor = this.audio.createScriptProcessor(4096, 1, 1);
-    this.chunks = []; this.speaking = false;
+    this.chunks = []; this.speaking = false; this.levelCb?.(0);
     this.startedAt = performance.now(); this.lastVoiceAt = this.startedAt; this.listening = true;
     this.processor.onaudioprocess = (event) => {
       if (!this.listening) return;
@@ -54,6 +56,7 @@ export class LocalWhisperVoice {
       const copy = new Float32Array(input.length); copy.set(input); this.chunks.push(copy);
       let energy = 0; for (let i = 0; i < input.length; i++) energy += input[i] * input[i];
       const rms = Math.sqrt(energy / input.length);
+      this.levelCb?.(Math.min(1, rms * 8));
       const now = performance.now();
       if (rms > 0.018) { this.speaking = true; this.lastVoiceAt = now; }
       if (this.speaking && rms < 0.012 && now - this.lastVoiceAt > 550 && now - this.startedAt > 700) void this.finish(language);
@@ -68,7 +71,7 @@ export class LocalWhisperVoice {
     this.stream?.getTracks().forEach((t) => t.stop());
     void this.audio?.close();
     this.processor = undefined; this.source = undefined; this.stream = undefined; this.audio = undefined;
-    this.chunks = []; this.speaking = false;
+    this.chunks = []; this.speaking = false; this.levelCb?.(0);
   }
 
   private async finish(language: "ar" | "en") {

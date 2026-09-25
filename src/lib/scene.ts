@@ -9,6 +9,7 @@ export type CharacterCapabilities = {
   hasFacialMorphs: boolean;
   animationCount: number;
   boneMap: Record<string, boolean>;
+  assetError?: string;
 };
 type Emotion = "neutral" | "happy" | "thinking" | "confused" | "surprised" | "listening" | "speaking";
 type State = "idle" | "walk" | "run" | "gesture";
@@ -44,6 +45,8 @@ export class AdamScene {
   private blinks: Array<{ mesh: THREE.Mesh; index: number }> = [];
   private emotion: Emotion = "neutral";
   private talking = false;
+  private voiceLevel = 0;
+  private speechViseme = "";
   private blinkTimer = 2.5;
   private blinkValue = 0;
   private gestures: string[] = [];
@@ -94,7 +97,7 @@ export class AdamScene {
   private reset() {
     this.root.clear(); this.mixer?.stopAllAction(); this.mixer = undefined; this.actions = []; this.active = undefined; this.model = undefined;
     this.bones.clear(); this.aliases.clear(); this.bases.clear(); this.morphs = []; this.blinks = []; this.stateIndex.clear(); this.gestures = []; this.proceduralOffsets.clear();
-    this.emotion = "neutral"; this.talking = false; this.talkTime = 0; this.blinkTimer = 2.5; this.blinkValue = 0; this.state = "idle"; this.idleIndex = -1; this.idleTime = 0; this.locomotion = 0;
+    this.emotion = "neutral"; this.talking = false; this.voiceLevel = 0; this.speechViseme = ""; this.talkTime = 0; this.blinkTimer = 2.5; this.blinkValue = 0; this.state = "idle"; this.idleIndex = -1; this.idleTime = 0; this.locomotion = 0;
     this.modelAspect = 0.62;
     this.caps = { loaded: false, hasRig: false, hasAnimations: false, hasFacialMorphs: false, animationCount: 0, boneMap: {} };
   }
@@ -102,7 +105,7 @@ export class AdamScene {
   async load(url: string) {
     this.reset();
     try { const g = await new GLTFLoader().loadAsync(url); this.install(g.scene, g.animations); }
-    catch { this.fallback(); }
+    catch (e) { const message = e instanceof Error ? e.message : String(e); this.fallback(); this.caps.assetError = "Default Adam character asset could not be loaded: " + message; }
     return this.getCapabilities();
   }
 
@@ -125,6 +128,7 @@ export class AdamScene {
   }
 
   private install(object: THREE.Object3D, clips: THREE.AnimationClip[]) {
+    this.validateAsset(object);
     this.model = object; this.root.add(object); this.indexBones(object); this.indexMorphs(object); this.fit(object);
     this.caps = { loaded: true, hasRig: this.bones.size > 0, hasAnimations: clips.length > 0, hasFacialMorphs: this.morphs.length > 0, animationCount: clips.length, boneMap: {} };
     for (const key of Object.keys(ALIASES)) this.caps.boneMap[key] = this.aliases.has(key);
@@ -143,7 +147,17 @@ export class AdamScene {
 
   setEmotion(e: Emotion) { this.emotion = e; }
   getEmotion() { return this.emotion; }
-  setTalking(v: boolean) { this.talking = v; if (!v) this.talkTime = 0; if (v) this.emotion = "speaking"; else if (this.emotion === "speaking") this.emotion = "neutral"; }
+  setTalking(v: boolean) { this.talking = v; if (!v) { this.talkTime = 0; this.voiceLevel = 0; this.speechViseme = ""; } if (v) this.emotion = "speaking"; else if (this.emotion === "speaking") this.emotion = "neutral"; }
+  setVoiceLevel(level: number) { this.voiceLevel = THREE.MathUtils.clamp(Number.isFinite(level) ? level : 0, 0, 1); if (this.voiceLevel > 0.015) this.talking = true; }
+  setViseme(name: string) { this.speechViseme = name.toLowerCase().replace(/[^a-z0-9]/g, ""); this.talking = true; }
+  private validateAsset(obj: THREE.Object3D) {
+    let triangles = 0; let meshes = 0;
+    obj.traverse((node) => { const mesh = node as THREE.Mesh; if (mesh instanceof THREE.Mesh && mesh.geometry) { meshes++; const index = mesh.geometry.getIndex(); const positions = mesh.geometry.getAttribute("position"); triangles += index ? Math.floor(index.count / 3) : positions ? Math.floor(positions.count / 3) : 0; } });
+    if (!meshes) throw new Error("Character asset contains no renderable mesh.");
+    if (!Number.isFinite(triangles) || triangles > 2_000_000) throw new Error("Character asset exceeds the 2,000,000 triangle safety limit.");
+    obj.updateWorldMatrix(true, true); const box = new THREE.Box3().setFromObject(obj); const size = box.getSize(new THREE.Vector3());
+    if (![size.x, size.y, size.z].every(Number.isFinite) || size.lengthSq() <= 0) throw new Error("Character asset has invalid or empty bounds.");
+  }
   queueGesture(name: string) { if (name.trim()) this.gestures.push(name.trim().toLowerCase()); }
   getAnimationState() { return this.state; }
   getLocomotionDistance() { return this.locomotion; }
@@ -171,8 +185,10 @@ export class AdamScene {
 
   private applyEmotion(dt: number) {
     if (this.talking) this.talkTime += dt;
+    const audioDrive = this.voiceLevel;
+    const viseme = this.speechViseme;
     const pattern = this.emotion === "happy" ? /smile|happy|joy/ : this.emotion === "surprised" ? /surpris|wide|oh/ : this.emotion === "confused" ? /confus|frown|sad/ : this.emotion === "thinking" ? /think|brow/ : this.emotion === "speaking" ? /mouth|jaw|open|speech|talk|viseme|aa|ah|ee|oh|ou/ : /$a/;
-    for (const m of this.morphs) { let target = pattern.test(m.name) ? (this.emotion === "speaking" ? 0.15 : 0.35) : 0; if (this.talking && /viseme|mouth|jaw|open|speech|talk|aa|ah|ee|oh|ou/.test(m.name)) target = 0.06 + Math.max(0, Math.sin(this.talkTime * (5.5 + (m.index % 3)))) * 0.18; if (m.mesh.morphTargetInfluences) m.mesh.morphTargetInfluences[m.index] = THREE.MathUtils.lerp(m.mesh.morphTargetInfluences[m.index] ?? 0, target, Math.min(1, dt * 12)); }
+    for (const m of this.morphs) { let target = pattern.test(m.name) ? (this.emotion === "speaking" ? 0.15 : 0.35) : 0; if (this.talking && /viseme|mouth|jaw|open|speech|talk|aa|ah|ee|oh|ou/.test(m.name)) target = Math.max(0.02, audioDrive * 0.9) + Math.max(0, Math.sin(this.talkTime * 3.2)) * 0.03; if (viseme && m.name.includes(viseme)) target = Math.max(target, 0.55); if (m.mesh.morphTargetInfluences) m.mesh.morphTargetInfluences[m.index] = THREE.MathUtils.lerp(m.mesh.morphTargetInfluences[m.index] ?? 0, target, Math.min(1, dt * 12)); }
   }
 
   private applyBlink(dt: number) {

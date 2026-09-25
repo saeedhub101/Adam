@@ -30,7 +30,7 @@ The Tauri command layer is the only frontend-to-native bridge. Phase 0/1 intenti
 The Windows CI workflow performs, in order:
 
 1. Foundation-file verification.
-2. `npm install`.
+2. `npm ci`.
 3. `npm run check`.
 4. `npm run build`.
 5. `cargo test --manifest-path src-tauri/Cargo.toml`.
@@ -58,15 +58,16 @@ Phase 1 adds the desktop character surface:
 
 - transparent always-on-top window
 - Three.js/WebGL renderer
-- default GLB asset slot with safe fallback avatar
-- GLB/GLTF picker
+- default GLB asset slot with an explicit diagnostic when the production asset is unavailable
+- GLB/GLTF/FBX picker
+- imported-asset validation (renderable mesh, finite bounds, and triangle-count limit)
 - size control
 - drag positioning
 - click-through API
 - persisted position
 - multi-monitor position clamping
 
-The final `adam.glb` asset is not required for the current foundation acceptance pass.
+The repository currently does not contain the final `adam.glb`; the runtime reports this explicitly and uses a development fallback so infrastructure CI can still run. A real Adam character package must still be supplied before final visual release.
 
 ## Phase 2 — Animation
 
@@ -79,10 +80,11 @@ The animation layer:
 - keeps procedural offsets separate from AnimationMixer updates to avoid frame-to-frame bone drift/conflicts
 - supports one-shot gesture fallback and automatic recovery to idle
 - supports generic GLB/GLTF/FBX rigs without requiring one fixed bone hierarchy
+- drives mouth opening from measured microphone RMS when local voice capture is active and uses speech-boundary viseme timing for browser TTS
 
 ## Phase 3 — Voice
 
-Voice capabilities include bilingual English/Arabic recognition and speech synthesis, microphone state, transcript handling, local Whisper model management, VAD, speech interruption behavior, and character talking/viseme-driven mouth animation. Model assets are cache/remote managed by Transformers.js; fully bundled offline model distribution remains a packaging-size decision rather than a build blocker.
+Voice capabilities include bilingual English/Arabic recognition and speech synthesis, microphone state, transcript handling, local Whisper model management, VAD, speech interruption behavior, measured microphone-energy mouth driving, and speech-boundary viseme timing for browser TTS. Phoneme-perfect audio-to-viseme inference still requires a phoneme-capable TTS/voice pipeline. Model assets are cache/remote managed by Transformers.js; fully bundled offline model distribution remains a packaging-size decision rather than a build blocker.
 
 ## Phase 4 — Local Brain & Memory
 
@@ -109,4 +111,4 @@ Permissions and controlled computer operations belong to later phases.
 
 ## Asset boundary
 
-The production `adam.glb` character asset is intentionally excluded from the Phase 0 foundation gate so that missing art assets cannot mask infrastructure/build failures.
+The final `adam.glb` character asset is not fabricated by CI. Missing art is surfaced as a runtime diagnostic and remains a final release input. CI validates all supplied/imported assets for basic safety limits.

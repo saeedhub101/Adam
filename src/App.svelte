@@ -126,7 +126,7 @@
   }
 
   async function setupLocalVoice() {
-    if (!localVoice) localVoice = new LocalWhisperVoice((status) => { whisperReady = status === "ready"; voiceBusy = status === "loading"; });
+    if (!localVoice) localVoice = new LocalWhisperVoice((status) => { whisperReady = status === "ready"; voiceBusy = status === "loading"; }, (level) => scene?.setVoiceLevel(level));
   }
 
   async function toggleLocalVoice() {
@@ -176,6 +176,11 @@
     scene?.setTalking(true);
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = lang === "ar" ? "ar-SA" : "en-US";
+    utterance.onboundary = (event: SpeechSynthesisEvent) => {
+      const index = Math.max(0, event.charIndex || 0); const ch = text[index]?.toLowerCase() || "";
+      const viseme = /[aou]/.test(ch) ? "aa" : /[ei]/.test(ch) ? "ee" : /[bmp]/.test(ch) ? "mouth" : /[fv]/.test(ch) ? "ou" : "mouth";
+      scene?.setViseme(viseme);
+    };
     utterance.rate = 1;
     utterance.onend = () => scene?.setTalking(false);
     utterance.onerror = () => scene?.setTalking(false);
@@ -187,6 +192,7 @@
     setupVoice();
     const caps = await scene.load("/adam.glb");
     capabilities = caps;
+    characterError = caps.assetError || "";
     animationNames = scene.listAnimations();
     renderQuality = (localStorage.getItem("adam-render-quality") as "auto"|"low"|"medium"|"high") || "auto";
     scene.setQuality(renderQuality); renderStatus = scene.getRenderStatus();

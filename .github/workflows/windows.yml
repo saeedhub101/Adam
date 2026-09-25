@@ -36,7 +36,7 @@ jobs:
             if (-not (Test-Path $file)) { throw "Missing required Phase 0 file: $file" }
           }
       - name: Install frontend dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
       - name: Svelte and TypeScript check
         run: npm run check
       - name: Frontend production build
@@ -51,7 +51,7 @@ jobs:
         shell: pwsh
         run: |
           $checks = @(
-            @{ file="src/lib/scene.ts"; patterns=@("removeProcedural","applyProcedural","leftForeArm","rightForeArm","gestureTime","setTalking","viseme","applyBlink") },
+            @{ file="src/lib/scene.ts"; patterns=@("removeProcedural","applyProcedural","leftForeArm","rightForeArm","gestureTime","setTalking","setVoiceLevel","setViseme","validateAsset","applyBlink") },
             @{ file="src/lib/voice.ts"; patterns=@("getUserMedia","finish") },
             @{ file="src/lib/model_manager.ts"; patterns=@("pipeline","progress_callback","allowRemoteModels") },
             @{ file="src-tauri/src/local_brain.rs"; patterns=@("detect_intent","normalize","Duration::minutes") },
@@ -147,6 +147,9 @@ jobs:
           if (-not (Select-String -Path "src-tauri/src/main.rs" -Pattern "TrayIconBuilder" -Quiet)) { throw "System tray integration missing." }
           if (-not (Select-String -Path "src-tauri/src/main.rs" -Pattern "windows_subsystem" -Quiet)) { throw "Windows GUI subsystem configuration missing." }
           if (-not (Select-String -Path "src/lib/scene.ts" -Pattern "blinks|applyBlink" -Quiet)) { throw "Facial blink system missing." }
+          if (-not (Select-String -Path "src/lib/scene.ts" -Pattern "validateAsset" -Quiet)) { throw "Character asset validation missing." }
+          if (-not (Select-String -Path "src/lib/voice.ts" -Pattern "levelCb" -Quiet)) { throw "Audio-level lip-sync bridge missing." }
+          if (-not (Select-String -Path "src/App.svelte" -Pattern "onboundary" -Quiet)) { throw "Speech boundary viseme bridge missing." }
           if (-not (Select-String -Path "src/App.svelte" -Pattern "adam-character-library" -Quiet)) { throw "Persistent character library missing." }
           if (-not (Select-String -Path "src/App.svelte" -Pattern "Restore saved character" -Quiet)) { throw "Character restore UI missing." }
 
