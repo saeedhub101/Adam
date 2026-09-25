@@ -51,6 +51,66 @@
   let savedCharacters = $state<string[]>([]);
   let lastCharacterName = $state("Adam default");
 
+  const CHARACTER_DB = "adam-character-library";
+  const CHARACTER_STORE = "packages";
+
+  function characterDb(): Promise<IDBDatabase> {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(CHARACTER_DB, 1);
+      req.onupgradeneeded = () => req.result.createObjectStore(CHARACTER_STORE);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async function saveCharacterPackage(name: string, files: File[]) {
+    const db = await characterDb();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(CHARACTER_STORE, "readwrite");
+      tx.objectStore(CHARACTER_STORE).put(files.map((file) => ({ name: file.name, type: file.type, blob: file })), name);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  }
+
+  async function loadCharacterPackage(name: string): Promise<File[]> {
+    const db = await characterDb();
+    const value = await new Promise<any>((resolve, reject) => {
+      const req = db.transaction(CHARACTER_STORE, "readonly").objectStore(CHARACTER_STORE).get(name);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    db.close();
+    return Array.isArray(value) ? value.map((item) => new File([item.blob], item.name, { type: item.type || "application/octet-stream" })) : [];
+  }
+
+  async function deleteCharacterPackage(name: string) {
+    const db = await characterDb();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(CHARACTER_STORE, "readwrite");
+      tx.objectStore(CHARACTER_STORE).delete(name);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  }
+
+  async function restoreLastCharacter() {
+    if (!savedCharacters.length) return;
+    try {
+      const files = await loadCharacterPackage(savedCharacters[0]);
+      if (!files.length) return;
+      const caps = await scene.loadFiles(files);
+      capabilities = caps;
+      animationNames = scene.listAnimations();
+      lastCharacterName = savedCharacters[0];
+    } catch {
+      savedCharacters = savedCharacters.slice(1);
+      localStorage.setItem("adam-character-history", JSON.stringify(savedCharacters));
+    }
+  }
+
   async function setupLocalVoice() {
     if (!localVoice) localVoice = new LocalWhisperVoice((status) => { whisperReady = status === "ready"; voiceBusy = status === "loading"; });
   }
@@ -122,6 +182,7 @@
       dragX = position.x;
       dragY = position.y;
     }
+    await restoreLastCharacter();
     cloudReady = await hasApiKey();
     try { const cfg = JSON.parse(localStorage.getItem("adam-cloud-config") || "{}"); provider = cfg.provider ?? provider; model = cfg.model ?? model; customBaseUrl = cfg.customBaseUrl ?? ""; persona = cfg.persona ?? persona; offlineFallback = cfg.offlineFallback ?? true; } catch {}
     await setIgnoreCursorEvents(false);
@@ -135,7 +196,8 @@
     try {
       const caps = await scene.loadFiles(selected);
       loadingProgress = 100; capabilities = caps; animationNames = scene.listAnimations(); animationState = "idle";
-      lastCharacterName = main.name.replace(/\.(glb|gltf)$/i, "");
+      lastCharacterName = main.name.replace(/\.(glb|gltf|fbx)$/i, "");
+      await saveCharacterPackage(lastCharacterName, selected);
       savedCharacters = [lastCharacterName, ...savedCharacters.filter((n) => n !== lastCharacterName)].slice(0, 8);
       localStorage.setItem("adam-character-history", JSON.stringify(savedCharacters));
       renderStatus = scene.getRenderStatus();
@@ -147,7 +209,7 @@
 
   async function chooseCharacter() {
     const input = document.createElement("input");
-    input.type = "file"; input.accept = ".glb,.gltf,.bin,.png,.jpg,.jpeg,.webp"; input.multiple = true;
+    input.type = "file"; input.accept = ".glb,.gltf,.fbx,.bin,.png,.jpg,.jpeg,.webp"; input.multiple = true;
     input.onchange = async () => { if (input.files?.length) await loadCharacterFiles(input.files); };
     input.click();
   }
@@ -282,7 +344,7 @@
   <div class="bubble">{t(lang, "idle")}</div>
   {#if showMenu}
     <div class="menu" onpointerdown={(e) => e.stopPropagation()} onpointermove={(e) => e.stopPropagation()}>
-      <button onclick={chooseCharacter}>{t(lang,"changeCharacter")}</button><small>Current: {lastCharacterName}</small>
+      <button onclick={chooseCharacter}>{t(lang,"changeCharacter")}</button><button onclick={() => void restoreLastCharacter()}>{lang === "ar" ? "استعادة الشخصية المحفوظة" : "Restore saved character"}</button><button onclick={async () => { await deleteCharacterPackage(lastCharacterName); savedCharacters = savedCharacters.filter((n) => n !== lastCharacterName); localStorage.setItem("adam-character-history", JSON.stringify(savedCharacters)); }}>{lang === "ar" ? "حذف الشخصية المحفوظة" : "Delete saved character"}</button><small>Current: {lastCharacterName}</small>
       {#if characterError}<div class="error">{characterError}</div>{/if}
       <div class="loading" class:hidden={!loadingCharacter}>Loading character… {loadingProgress}%</div><div class="capabilities">{capabilities.loaded ? `Rig: ${capabilities.hasRig ? "yes" : "no"} · Animations: ${capabilities.animationCount ?? 0} · Face: ${capabilities.hasFacialMorphs ? "yes" : "no"} · Bones: ${Object.values(capabilities.boneMap ?? {}).filter(Boolean).length}/17` : "Loading character…"}</div><div class="quality-row"><label>Quality <select bind:value={renderQuality} onchange={() => { scene?.setQuality(renderQuality); localStorage.setItem("adam-render-quality", renderQuality); renderStatus = scene?.getRenderStatus(); }}><option value="auto">Auto</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label><small>{renderStatus.contextLost ? "WebGL context lost" : "DPR " + (renderStatus.pixelRatio ?? "—")}</small></div><div class="bone-capabilities">{#each Object.entries(capabilities.boneMap ?? {}) as [bone, present]}<span class:missing={!present}>{present ? "✓" : "✗"} {bone}</span>{/each}</div>{#if savedCharacters.length}<small class="history">Recent: {savedCharacters.join(" · ")}</small>{/if}
       <div class="animation-panel">
