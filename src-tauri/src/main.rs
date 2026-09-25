@@ -181,6 +181,18 @@ fn main() {
             calendar::init(&dir.join("adam.db"))?;
             permissions::init(&dir.join("adam.db"))?;
 
+            let reminder_app = app.handle().clone();
+            thread::spawn(move || loop {
+                thread::sleep(Duration::from_secs(15));
+                let Ok(path) = reminder_app.path().app_data_dir().map(|p| p.join("adam.db")).map_err(|e| e.to_string()) else { continue; };
+                if let Ok(items) = reminders::due_unnotified(&path) {
+                    for (id, title, due_at) in items {
+                        let _ = reminders::mark_notified(&path, id);
+                        let _ = reminder_app.emit("adam://reminder-due", serde_json::json!({ "id": id, "title": title, "dueAt": due_at }));
+                    }
+                }
+            });
+
             if let Some(state) = read_state(app.handle())? {
                 let scale = (state.size as f64 / 100.0).clamp(0.6, 1.6);
                 let size = PhysicalSize::new(
@@ -207,6 +219,7 @@ fn main() {
             reminder_add,
             reminder_list,
             reminder_complete,
+            reminder_due_now,
             cloud_save_key,
             cloud_has_key,
             cloud_delete_key,
