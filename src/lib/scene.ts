@@ -137,8 +137,31 @@ export class AdamScene {
 
   listAnimations() { return this.actions.map((a) => a.getClip().name); }
   getAnimationState() { return this.state; }
-  setState(state: "idle"|"walk"|"run"|"gesture") {\n    this.state = state;\n    const i = this.stateIndex.get(state);\n    if (i !== undefined) this.playAnimation(i);\n    else {\n      this.activeAction?.fadeOut(0.2);\n      this.activeAction = undefined;\n      if (state === "idle" && this.idleClipIndex >= 0) this.playAnimation(this.idleClipIndex);\n      this.idleTime = 0;\n    }\n  }
-  setTalking(value: boolean) { this.talking = value; }\n\n  lookAtScreenPoint(x: number, y: number, width: number, height: number) {\n    const head = this.findBone("head");\n    if (!head || width <= 0 || height <= 0) return;\n    const nx = THREE.MathUtils.clamp((x / width) * 2 - 1, -1, 1);\n    const ny = THREE.MathUtils.clamp((y / height) * 2 - 1, -1, 1);\n    const maxYaw = THREE.MathUtils.degToRad(15);\n    const maxPitch = THREE.MathUtils.degToRad(10);\n    const base = this.baseRotations.get(head);\n    if (!base) return;\n    head.rotation.y = THREE.MathUtils.lerp(head.rotation.y, base.y + nx * maxYaw, 0.18);\n    head.rotation.x = THREE.MathUtils.lerp(head.rotation.x, base.x - ny * maxPitch, 0.18);\n  }
+  setState(state: "idle"|"walk"|"run"|"gesture") {
+    this.state = state;
+    const i = this.stateIndex.get(state);
+    if (i !== undefined) this.playAnimation(i);
+    else {
+      this.activeAction?.fadeOut(0.2);
+      this.activeAction = undefined;
+      if (state === "idle" && this.idleClipIndex >= 0) this.playAnimation(this.idleClipIndex);
+      this.idleTime = 0;
+    }
+  }
+  setTalking(value: boolean) { this.talking = value; }
+
+  lookAtScreenPoint(x: number, y: number, width: number, height: number) {
+    const head = this.findBone("head");
+    if (!head || width <= 0 || height <= 0) return;
+    const nx = THREE.MathUtils.clamp((x / width) * 2 - 1, -1, 1);
+    const ny = THREE.MathUtils.clamp((y / height) * 2 - 1, -1, 1);
+    const maxYaw = THREE.MathUtils.degToRad(15);
+    const maxPitch = THREE.MathUtils.degToRad(10);
+    const base = this.baseRotations.get(head);
+    if (!base) return;
+    head.rotation.y = THREE.MathUtils.lerp(head.rotation.y, base.y + nx * maxYaw, 0.18);
+    head.rotation.x = THREE.MathUtils.lerp(head.rotation.x, base.x - ny * maxPitch, 0.18);
+  }
 
   private indexMouthMorphs(obj: THREE.Object3D) {
     obj.traverse((child) => {
