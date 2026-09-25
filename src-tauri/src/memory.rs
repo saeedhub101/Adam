@@ -39,10 +39,11 @@ pub fn list(path: &Path, limit: u32) -> Result<Vec<(i64, String, String, String)
 
 pub fn search(path: &Path, query: &str, limit: u32) -> Result<Vec<(i64, String, String, String)>, String> {
     let conn = Connection::open(path).map_err(|e| e.to_string())?;
-    let pattern = format!("%{}%", query.replace('%', "%%"));
+    let escaped = query.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
+    let pattern = format!("%{}%", escaped);
     let mut stmt = conn.prepare(
         "SELECT id, content, kind, created_at FROM memories
-         WHERE content LIKE ?1 COLLATE NOCASE
+         WHERE content LIKE ?1 ESCAPE '\\' COLLATE NOCASE
          ORDER BY id DESC LIMIT ?2"
     ).map_err(|e| e.to_string())?;
     let rows = stmt.query_map(params![pattern, limit.min(1000)], |row| {
