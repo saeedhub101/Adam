@@ -13,6 +13,8 @@ mod reminders;
 mod safety;
 mod skills;
 mod system;
+mod date_parser;
+mod automation;
 
 use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf, thread, time::Duration};
@@ -267,6 +269,16 @@ fn main() {
             skills_list,
             memory_export,
             memory_delete_all,
+            calendar_add,
+            calendar_update,
+            calendar_events_between,
+            reminder_snooze,
+            system_action,
+            clipboard_read,
+            clipboard_write,
+            media_action,
+            parse_date_text,
+            automation_plan,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Adam");
@@ -639,3 +651,33 @@ fn memory_export(app: tauri::AppHandle) -> Result<String, String> {
 fn memory_delete_all(app: tauri::AppHandle) -> Result<(), String> {
     memory::delete_all(&memory_path(&app)?)
 }
+
+#[tauri::command]
+fn calendar_add(app: tauri::AppHandle,title:String,start_at:String,end_at:Option<String>,all_day:Option<bool>,recurrence:Option<String>,weekdays:Option<String>,reminder_offsets:Option<String>,notes:Option<String>)->Result<i64,String>{
+ calendar::add_full(&memory_path(&app)?,&title,&start_at,end_at.as_deref(),all_day.unwrap_or(false),recurrence.as_deref(),weekdays.as_deref(),reminder_offsets.as_deref(),notes.as_deref())
+}
+#[tauri::command]
+fn calendar_update(app:tauri::AppHandle,id:i64,title:String,start_at:String,end_at:Option<String>,all_day:Option<bool>,recurrence:Option<String>,weekdays:Option<String>,reminder_offsets:Option<String>,notes:Option<String>)->Result<(),String>{
+ calendar::update_full(&memory_path(&app)?,id,&title,&start_at,end_at.as_deref(),all_day.unwrap_or(false),recurrence.as_deref(),weekdays.as_deref(),reminder_offsets.as_deref(),notes.as_deref())
+}
+#[tauri::command]
+fn calendar_events_between(app:tauri::AppHandle,start:String,end:String)->Result<Vec<calendar::CalendarEvent>,String>{calendar::between(&memory_path(&app)?,&start,&end)}
+#[tauri::command]
+fn reminder_snooze(app:tauri::AppHandle,id:i64,minutes:i64)->Result<(),String>{reminders::snooze(&memory_path(&app)?,id,minutes)}
+#[tauri::command]
+fn system_action(app:tauri::AppHandle,action:String)->Result<String,String>{
+ let p=memory_path(&app)?; if !permissions::allowed(&p,"system_settings")? {return Err("System action requires permission".into());}
+ if !matches!(action.as_str(),"lock"|"sleep"|"restart"|"shutdown"|"signout"){return Err("Unsupported system action".into());}
+ if matches!(action.as_str(),"restart"|"shutdown"|"signout"|"sleep"){return Err("This sensitive system action requires an explicit confirmation from the user.".into());}
+ let r=system::action(&action)?; permissions::add_log(&p,"system_action",&action)?; Ok(r)
+}
+#[tauri::command]
+fn clipboard_read(app:tauri::AppHandle)->Result<String,String>{let p=memory_path(&app)?;if !permissions::allowed(&p,"clipboard")?{return Err("Clipboard permission is not enabled".into())}system::clipboard_read()}
+#[tauri::command]
+fn clipboard_write(app:tauri::AppHandle,text:String)->Result<(),String>{let p=memory_path(&app)?;if !permissions::allowed(&p,"clipboard")?{return Err("Clipboard permission is not enabled".into())}if text.chars().count()>10000{return Err("Clipboard text exceeds safe limit".into())}system::clipboard_write(&text)}
+#[tauri::command]
+fn media_action(app:tauri::AppHandle,action:String)->Result<(),String>{let p=memory_path(&app)?;if !permissions::allowed(&p,"system_settings")?{return Err("Media control requires permission".into())}system::media_action(&action)}
+#[tauri::command]
+fn parse_date_text(text:String,now:String,language:String)->Result<date_parser::ParsedDate,String>{date_parser::parse(&text,&now,&language)}
+#[tauri::command]
+fn automation_plan(input:String)->Result<automation::AutomationPlan,String>{automation::plan(&input)}
