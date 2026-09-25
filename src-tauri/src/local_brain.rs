@@ -71,8 +71,7 @@ pub fn detect_intent(input: &str) -> Intent {
         "اهلا",
         "السلام عليكم",
     ];
-    if greetings.iter().any(|x| q.contains(x))
-    {
+    if greetings.iter().any(|x| q.contains(x)) {
         return Intent::Greeting;
     }
     Intent::Unknown
