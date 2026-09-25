@@ -7,6 +7,7 @@ mod computer;
 mod local_brain;
 mod memory;
 mod permissions;
+mod production;
 mod reminders;
 
 use serde::{Deserialize, Serialize};
@@ -249,6 +250,7 @@ fn main() {
             emergency_stop,
             agent_route,
             computer_open,
+            production_diagnostics,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Adam");
@@ -525,4 +527,11 @@ fn computer_open(app: tauri::AppHandle, target: String) -> Result<String, String
     let label = computer::open_target(&target)?;
     permissions::add_log(&path, "computer.open", &label)?;
     Ok(label)
+}
+
+#[tauri::command]
+fn production_diagnostics(app: tauri::AppHandle) -> Result<production::RuntimeDiagnostics, String> {
+    let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    production::verify_data_dir(&data_dir)?;
+    Ok(production::diagnostics(data_dir, env!("CARGO_PKG_VERSION")))
 }

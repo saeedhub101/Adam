@@ -86,6 +86,22 @@ jobs:
             }
           }
           Write-Host "Phase 5 cloud/voice/reminder/integration source gates passed."
+      - name: Verify Phase 6-9 production hardening gates
+        shell: pwsh
+        run: |
+          $checks = @(
+            @{ file="src-tauri/src/production.rs"; patterns=@("RuntimeDiagnostics","redact_secret","verify_data_dir","phase6_release","phase7_security","phase8_recovery","phase9_observability") },
+            @{ file="docs/PHASES_6_9_ACCEPTANCE.md"; patterns=@("Phase 6","Phase 7","Phase 8","Phase 9","Definition of 100%") }
+          )
+          foreach ($check in $checks) {
+            if (-not (Test-Path $check.file)) { throw "Missing production completion file: $($check.file)" }
+            $content = Get-Content $check.file -Raw
+            foreach ($pattern in $check.patterns) {
+              if ($content -notmatch [regex]::Escape($pattern)) { throw "Missing required Phase 6-9 marker '$pattern' in $($check.file)" }
+            }
+          }
+      - name: Production safety unit tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml production::tests
       - name: Tauri Windows production build
         run: npm run tauri build
       - name: Verify Phase 0/1 packaging configuration
