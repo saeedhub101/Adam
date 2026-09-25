@@ -67,6 +67,23 @@ jobs:
             }
           }
           Write-Host "Phase 2-4 source acceptance gates passed."
+      - name: Verify Phase 5 cloud, voice and integration gates
+        shell: pwsh
+        run: |
+          $markers = @(
+            @{ file="src/lib/cloud.ts"; patterns=@("cloudTestConnection","cloudCancel") },
+            @{ file="src/App.svelte"; patterns=@("chatHistory","testProvider","cancelChat","adam://reminder-due") },
+            @{ file="src-tauri/src/ai.rs"; patterns=@("test_connection","cancel_stream","oneshot") },
+            @{ file="src-tauri/src/main.rs"; patterns=@("grant_webview_media_permissions","reminder_app","cloud_test_connection","cloud_cancel") },
+            @{ file="src-tauri/src/reminders.rs"; patterns=@("due_unnotified","mark_notified") },
+            @{ file="src-tauri/src/memory.rs"; patterns=@("query_tokens","scored.sort_by") }
+          )
+          foreach ($check in $markers) {
+            foreach ($pattern in $check.patterns) {
+              if (-not (Select-String -Path $check.file -Pattern $pattern -Quiet)) { throw "Missing Phase 5/integration marker in $($check.file): $pattern" }
+            }
+          }
+          Write-Host "Phase 5 cloud/voice/reminder/integration source gates passed."
       - name: Tauri Windows production build
         run: npm run tauri build
       - name: Verify Phase 0/1 packaging configuration
