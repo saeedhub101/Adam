@@ -10,6 +10,9 @@ mod permissions;
 mod production;
 mod screen;
 mod reminders;
+mod safety;
+mod skills;
+mod system;
 
 use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf, thread, time::Duration};
@@ -258,6 +261,12 @@ fn main() {
             computer_click,
             computer_type,
             computer_key,
+            system_info,
+            discover_apps,
+            safety_check_text,
+            skills_list,
+            memory_export,
+            memory_delete_all,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Adam");
@@ -606,4 +615,27 @@ fn computer_key(app: tauri::AppHandle, virtual_key: u16) -> Result<(), String> {
     }
     computer::key_press(virtual_key)?;
     permissions::add_log(&path, "computer.key", &format!("VK {}", virtual_key))
+}
+
+
+#[tauri::command]
+fn system_info() -> Result<system::SystemInfo, String> { system::info() }
+
+#[tauri::command]
+fn discover_apps() -> Result<Vec<system::AppEntry>, String> { system::discover_apps() }
+
+#[tauri::command]
+fn safety_check_text(text: String) -> safety::SafetyResult { safety::check_untrusted_text(&text) }
+
+#[tauri::command]
+fn skills_list() -> Vec<skills::Skill> { skills::registry() }
+
+#[tauri::command]
+fn memory_export(app: tauri::AppHandle) -> Result<String, String> {
+    memory::export_json(&memory_path(&app)?)
+}
+
+#[tauri::command]
+fn memory_delete_all(app: tauri::AppHandle) -> Result<(), String> {
+    memory::delete_all(&memory_path(&app)?)
 }

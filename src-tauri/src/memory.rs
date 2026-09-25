@@ -93,3 +93,23 @@ pub fn delete(path: &Path, id: i64) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     Ok(())
 }
+
+pub fn export_json(path:&Path)->Result<String,String>{
+ let c=Connection::open(path).map_err(|e|e.to_string())?;
+ let mut obj=serde_json::Map::new();
+ for (table,sql) in [
+  ("memories","SELECT id,content,kind,created_at,updated_at FROM memories"),
+  ("notes","SELECT id,title,content,created_at,updated_at FROM notes"),
+  ("facts","SELECT id,key,value,created_at,updated_at FROM facts"),
+  ("events","SELECT id,title,start_at,end_at,all_day,recurrence,weekdays,reminder_offsets,notes,created_at,updated_at FROM events"),
+  ("reminders","SELECT id,title,due_at,completed,notified,created_at FROM reminders"),
+ ]{
+  let mut st=c.prepare(sql).map_err(|e|e.to_string())?;
+  let cols=st.column_count();
+  let names=(0..cols).map(|i|st.column_name(i).unwrap_or("").to_string()).collect::<Vec<_>>();
+  let rows=st.query_map([],|r|{let mut m=serde_json::Map::new();for i in 0..cols{let v:Result<String,_>=r.get(i);if let Ok(s)=v{m.insert(names[i].clone(),serde_json::Value::String(s));}else if let Ok(n)=r.get::<_,i64>(i){m.insert(names[i].clone(),serde_json::Value::Number(n.into()));}}Ok(serde_json::Value::Object(m))}).map_err(|e|e.to_string())?;
+  let mut arr=Vec::new();for row in rows{arr.push(row.map_err(|e|e.to_string())?);}obj.insert(table.into(),serde_json::Value::Array(arr));
+ }
+ serde_json::to_string_pretty(&obj).map_err(|e|e.to_string())
+}
+pub fn delete_all(path:&Path)->Result<(),String>{let c=Connection::open(path).map_err(|e|e.to_string())?;c.execute_batch("DELETE FROM memories;DELETE FROM notes;DELETE FROM facts;DELETE FROM events;DELETE FROM conversation_summaries;DELETE FROM reminders;DELETE FROM action_log;").map_err(|e|e.to_string())}
