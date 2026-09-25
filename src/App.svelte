@@ -12,9 +12,46 @@
   let dragging = false;
   let lastX = 0;
   let lastY = 0;
+  let listening = false;
+  let transcript = "";
+  let recognition: any;
+
+  function setupVoice() {
+    const Recognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!Recognition) return;
+    recognition = new Recognition();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = lang === "ar" ? "ar-SA" : "en-US";
+    recognition.onstart = () => listening = true;
+    recognition.onend = () => listening = false;
+    recognition.onerror = () => listening = false;
+    recognition.onresult = (event: any) => {
+      let text = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) text += event.results[i][0].transcript;
+      transcript = text.trim();
+      if (event.results[event.results.length - 1]?.isFinal && transcript) speak(transcript);
+    };
+  }
+
+  function toggleVoice() {
+    if (!recognition) setupVoice();
+    if (!recognition) return;
+    if (listening) recognition.stop(); else { recognition.lang = lang === "ar" ? "ar-SA" : "en-US"; recognition.start(); }
+  }
+
+  function speak(text: string) {
+    if (!text || !(window as any).speechSynthesis) return;
+    (window as any).speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = lang === "ar" ? "ar-SA" : "en-US";
+    utterance.rate = 1;
+    (window as any).speechSynthesis.speak(utterance);
+  }
 
   onMount(async () => {
     scene = new AdamScene(canvas);
+    setupVoice();
     await scene.load("/adam.glb");
     window.addEventListener("resize", () => scene.resize());
     await loadPosition();
@@ -67,7 +104,9 @@
     <div class="menu">
       <button on:click|stopPropagation={chooseCharacter}>{t(lang,"changeCharacter")}</button>
       <label>{t(lang,"size")} {size}% <input type="range" min="60" max="160" bind:value={size} on:input={resizeAdam}/></label>
-      <button on:click|stopPropagation={() => lang = lang === "en" ? "ar" : "en"}>{lang === "en" ? "العربية" : "English"}</button>
+      <button on:click|stopPropagation={() => { lang = lang === "en" ? "ar" : "en"; setupVoice(); }}>{lang === "en" ? "العربية" : "English"}</button>
+      <button class:active={listening} on:click|stopPropagation={toggleVoice}>{listening ? "● " : "🎙 "} {listening ? (lang === "ar" ? "استماع..." : "Listening...") : (lang === "ar" ? "الميكروفون" : "Microphone")}</button>
+      {#if transcript}<div class="transcript">{transcript}</div>{/if}
       <button on:click|stopPropagation={toggleThrough}>✓</button>
     </div>
   {/if}
