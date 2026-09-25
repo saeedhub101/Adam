@@ -29,6 +29,9 @@ fn main(){tauri::Builder::default().setup(|app|{let win=app.get_webview_window("
 #[tauri::command] fn local_brain_execute(app:tauri::AppHandle,input:String,language:String)->Result<Option<String>,String>{local_brain::execute(&memory_path(&app)?,&input,&language)}
 #[tauri::command] async fn cloud_chat_stream(app:tauri::AppHandle,request_id:String,base_url:String,model:String,messages:Vec<ai::Message>)->Result<String,String>{ai::chat_stream(&app,&request_id,ai::ChatRequest{base_url,model,messages}).await}
 
+#[tauri::command] fn calendar_list(app:tauri::AppHandle)->Result<Vec<(i64,String,String)>,String>{calendar::list(&memory_path(&app)?)}
+#[tauri::command] fn calendar_delete(app:tauri::AppHandle,id:i64)->Result<(),String>{calendar::delete(&memory_path(&app)?,id)}
+
 #[tauri::command] fn permission_list(app:tauri::AppHandle)->Result<Vec<permissions::Permission>,String>{permissions::list(&memory_path(&app)?)}
 #[tauri::command] fn permission_set(app:tauri::AppHandle,capability:String,mode:String)->Result<(),String>{let p=memory_path(&app)?;permissions::set(&p,&capability,&mode)?;permissions::add_log(&p,"permission",&format!("{}={}",capability,mode))}
 #[tauri::command] fn activity_log(app:tauri::AppHandle,limit:Option<u32>)->Result<Vec<(i64,String,String,String)>,String>{permissions::logs(&memory_path(&app)?,limit.unwrap_or(100))}
