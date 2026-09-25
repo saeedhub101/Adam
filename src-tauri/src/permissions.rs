@@ -108,6 +108,13 @@ pub fn remove_excluded(path: &Path, app: &str) -> Result<(), String> {
 
 pub fn allowed(path: &Path, capability: &str) -> Result<bool, String> {
     let c = Connection::open(path).map_err(|e| e.to_string())?;
-    let mode: Option<String> = c.query_row("SELECT mode FROM permissions WHERE capability=?1", params![capability], |r| r.get(0)).optional().map_err(|e| e.to_string())?;
+    let mode: Option<String> = c
+        .query_row(
+            "SELECT mode FROM permissions WHERE capability=?1",
+            params![capability],
+            |r| r.get(0),
+        )
+        .optional()
+        .map_err(|e| e.to_string())?;
     Ok(matches!(mode.as_deref(), Some("always") | Some("session")))
 }
