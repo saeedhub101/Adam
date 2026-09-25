@@ -13,7 +13,7 @@ pub fn init(path: &Path) -> Result<(), String> {
     let c = Connection::open(path).map_err(|e| e.to_string())?;
     c.execute_batch("CREATE TABLE IF NOT EXISTS permissions (capability TEXT PRIMARY KEY, mode TEXT NOT NULL); CREATE TABLE IF NOT EXISTS excluded_apps (app TEXT PRIMARY KEY); CREATE TABLE IF NOT EXISTS activity_log (id INTEGER PRIMARY KEY AUTOINCREMENT, action TEXT NOT NULL, detail TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);")
         .map_err(|e| e.to_string())?;
-    c.execute("INSERT OR IGNORE INTO permissions(capability,mode) VALUES ('computer.open','ask'),('microphone','ask'),('cloud.ai','ask')", [])
+    c.execute("INSERT OR IGNORE INTO permissions(capability,mode) VALUES ('computer.open','ask'),('computer.control','ask'),('screen.capture','ask'),('microphone','ask'),('cloud.ai','ask')", [])
         .map_err(|e| e.to_string())?;
     Ok(())
 }
