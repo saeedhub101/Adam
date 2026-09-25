@@ -254,6 +254,10 @@ fn main() {
             production_diagnostics,
             screen_capture,
             vision_analyze,
+            computer_windows,
+            computer_click,
+            computer_type,
+            computer_key,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Adam");
@@ -554,4 +558,52 @@ fn screen_capture(app: tauri::AppHandle) -> Result<screen::CaptureResult, String
 #[tauri::command]
 async fn vision_analyze(base_url: String, model: String, prompt: String, png_base64: String) -> Result<ai::VisionResult, String> {
     ai::vision_analyze(&base_url, &model, &prompt, &png_base64).await
+}
+
+
+#[tauri::command]
+fn computer_windows(app: tauri::AppHandle) -> Result<Vec<(isize, String)>, String> {
+    let path = memory_path(&app)?;
+    if !permissions::allowed(&path, "computer.control")? {
+        return Err("computer.control permission is not enabled".into());
+    }
+    let result = computer::windows()?;
+    permissions::add_log(&path, "computer.windows", &format!("{} visible windows", result.len()))?;
+    Ok(result)
+}
+
+#[tauri::command]
+fn computer_click(app: tauri::AppHandle, x: i32, y: i32, double: bool) -> Result<(), String> {
+    let path = memory_path(&app)?;
+    if !permissions::allowed(&path, "computer.control")? {
+        return Err("computer.control permission is not enabled".into());
+    }
+    if x.abs() > 100000 || y.abs() > 100000 {
+        return Err("Pointer coordinates are outside the safe bound".into());
+    }
+    computer::mouse_click(x, y, double)?;
+    permissions::add_log(&path, "computer.click", &format!("{},{} double={}", x, y, double))
+}
+
+#[tauri::command]
+fn computer_type(app: tauri::AppHandle, text: String) -> Result<(), String> {
+    let path = memory_path(&app)?;
+    if !permissions::allowed(&path, "computer.control")? {
+        return Err("computer.control permission is not enabled".into());
+    }
+    if text.chars().count() > 4000 {
+        return Err("Typed text exceeds the safe 4000-character bound".into());
+    }
+    computer::type_text(&text)?;
+    permissions::add_log(&path, "computer.type", &format!("{} characters", text.chars().count()))
+}
+
+#[tauri::command]
+fn computer_key(app: tauri::AppHandle, virtual_key: u16) -> Result<(), String> {
+    let path = memory_path(&app)?;
+    if !permissions::allowed(&path, "computer.control")? {
+        return Err("computer.control permission is not enabled".into());
+    }
+    computer::key_press(virtual_key)?;
+    permissions::add_log(&path, "computer.key", &format!("VK {}", virtual_key))
 }
