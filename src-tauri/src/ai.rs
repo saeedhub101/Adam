@@ -144,6 +144,7 @@ pub async fn chat_stream(
         .map_err(|e| format!("Provider connection failed: {}", e))?;
     let status = response.status();
     if !status.is_success() {
+        if let Ok(mut map) = cancel_map().lock() { map.remove(request_id); }
         let body = response.text().await.unwrap_or_default();
         return Err(format!(
             "Provider request failed (HTTP {}): {}",
