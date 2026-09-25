@@ -35,7 +35,14 @@ export class LocalWhisperVoice {
     await this.load();
     this.handler = handler;
     (window as any).speechSynthesis?.cancel();
-    this.stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    try {
+      this.stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    } catch (e) {
+      this.status = "error";
+      this.error = e instanceof DOMException ? `${e.name}: ${e.message || "Microphone permission denied"}` : String(e);
+      this.statusCb("error");
+      throw e;
+    }
     this.audio = new AudioContext({ sampleRate: 16000 });
     this.source = this.audio.createMediaStreamSource(this.stream);
     this.processor = this.audio.createScriptProcessor(4096, 1, 1);
