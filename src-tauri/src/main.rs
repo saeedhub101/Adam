@@ -137,7 +137,7 @@ fn main() {
                 let _ = window.show();
                 let _ = window.set_focus();
             }
-        })
+        }))
         .setup(|app| {
             let win = app
                 .get_webview_window("main")
