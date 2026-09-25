@@ -234,7 +234,13 @@
   }
   function stopDrag() { dragging=false; }
 
+  function trackPointer(e: PointerEvent) {
+    if (!scene || showMenu || dragging) return;
+    scene.lookAtScreenPoint(e.clientX, e.clientY, window.innerWidth, window.innerHeight);
+  }
+
   async function openMenu() {
+    scene?.lookAtScreenPoint(window.innerWidth / 2, window.innerHeight / 2, window.innerWidth, window.innerHeight);
     clickThrough = false;
     await setIgnoreCursorEvents(false);
     showMenu = true;
@@ -255,7 +261,7 @@
 
 <svelte:window onkeydown={(e) => { if (e.key === "Escape") void closeMenu(); }} />
 
-<div class="stage" class:drag-over={dragOver} ondragover={(e) => { e.preventDefault(); dragOver = true; }} ondragleave={() => dragOver = false} ondrop={(e) => { e.preventDefault(); dragOver = false; const files = e.dataTransfer?.files; if (files?.length) void loadCharacterFiles(files); }} ondblclick={() => void openMenu()} oncontextmenu={(e) => { e.preventDefault(); void openMenu(); }} onpointerdown={startDrag} onpointermove={drag} onpointerup={stopDrag}>
+<div class="stage" class:drag-over={dragOver} ondragover={(e) => { e.preventDefault(); dragOver = true; }} ondragleave={() => dragOver = false} ondrop={(e) => { e.preventDefault(); dragOver = false; const files = e.dataTransfer?.files; if (files?.length) void loadCharacterFiles(files); }} ondblclick={() => void openMenu()} oncontextmenu={(e) => { e.preventDefault(); void openMenu(); }} onpointerdown={startDrag} onpointermove={(e) => { drag(e); trackPointer(e); }} onpointerup={stopDrag}>
   <canvas bind:this={canvas}></canvas>
   <div class="bubble">{t(lang, "idle")}</div>
   {#if showMenu}
