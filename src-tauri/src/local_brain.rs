@@ -89,14 +89,14 @@ pub fn reply(input: &str, language: &str) -> String {
     match detect_intent(input) {
         Intent::Unknown => if is_ar(language) { "لم أفهم الطلب محلياً.".into() } else { "I did not understand that locally.".into() },
         _ => execute(Path::new(":memory:"), input, language).unwrap_or_else(|_| {
-            if is_ar(language) { "تعذر تنفيذ الطلب محلياً.".into() } else { "The local request could not be completed.".into() }
+            if is_ar(language) { Some("تعذر تنفيذ الطلب محلياً.".into()) } else { Some("The local request could not be completed.".into()) }
         }).unwrap_or_else(|| if is_ar(language) { "لم أفهم الطلب محلياً.".into() } else { "I did not understand that locally.".into() }),
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{detect_intent, reply, Intent};
+    use super::{detect_intent, Intent};
     #[test] fn greeting_is_detected(){assert_eq!(detect_intent("hello"),Intent::Greeting);}
     #[test] fn time_is_detected(){assert_eq!(detect_intent("what time is it"),Intent::Time);}
     #[test] fn arabic_reminder_is_detected(){assert_eq!(detect_intent("ذكرني غداً"),Intent::Reminder);}
