@@ -18,7 +18,7 @@ const MAX_LONG_EDGE: u32 = 1568;
 fn foreground_is_excluded(excluded: &[String]) -> bool {
     use std::path::PathBuf;
     use windows::Win32::Foundation::HWND;
-    use windows::Win32::System::Threading::{OpenProcess, QueryFullProcessImageNameW, PROCESS_QUERY_LIMITED_INFORMATION};
+    use windows::Win32::System::Threading::{OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_FORMAT, PROCESS_QUERY_LIMITED_INFORMATION};
     use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
     let hwnd: HWND = unsafe { GetForegroundWindow() };
     if hwnd.0.is_null() { return false; }
@@ -29,7 +29,7 @@ fn foreground_is_excluded(excluded: &[String]) -> bool {
     let Ok(process) = process else { return false; };
     let mut buf = vec![0u16; 1024];
     let mut len = buf.len() as u32;
-    let ok = unsafe { QueryFullProcessImageNameW(process, 0, windows::core::PWSTR(buf.as_mut_ptr()), &mut len).is_ok() };
+    let ok = unsafe { QueryFullProcessImageNameW(process, PROCESS_NAME_FORMAT(0), windows::core::PWSTR(buf.as_mut_ptr()), &mut len).is_ok() };
     unsafe { let _ = windows::Win32::Foundation::CloseHandle(process); }
     if !ok { return false; }
     let path = PathBuf::from(String::from_utf16_lossy(&buf[..len as usize]));
