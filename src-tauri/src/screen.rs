@@ -12,17 +12,12 @@ pub struct CaptureResult {
 pub fn capture_desktop() -> Result<CaptureResult, String> {
     use windows::Win32::Foundation::HWND;
     use windows::Win32::Graphics::Gdi::*;
-    use windows::Win32::UI::WindowsAndMessaging::{
-        GetDC, GetDesktopWindow, GetSystemMetrics, ReleaseDC,
-        SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN,
-    };
+    use windows::Win32::UI::WindowsAndMessaging::{GetDesktopWindow, GetSystemMetrics, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN};
 
     unsafe {
         let hwnd: HWND = GetDesktopWindow();
         let hdc = GetDC(Some(hwnd));
-        if hdc.0.is_null() {
-            return Err("Unable to acquire desktop DC".into());
-        }
+        if hdc.0.is_null() { return Err("Unable to acquire desktop DC".into()); }
 
         let left = GetSystemMetrics(SM_XVIRTUALSCREEN);
         let top = GetSystemMetrics(SM_YVIRTUALSCREEN);
@@ -43,18 +38,7 @@ pub fn capture_desktop() -> Result<CaptureResult, String> {
         }
 
         let old = SelectObject(mem, bitmap.into());
-        let copied = BitBlt(
-            mem,
-            0,
-            0,
-            width as i32,
-            height as i32,
-            Some(hdc),
-            left,
-            top,
-            SRCCOPY | CAPTUREBLT,
-        ).is_ok();
-
+        let copied = BitBlt(mem, 0, 0, width as i32, height as i32, Some(hdc), left, top, SRCCOPY | CAPTUREBLT).is_ok();
         if !copied {
             let _ = SelectObject(mem, old);
             let _ = DeleteObject(bitmap.into());
@@ -72,48 +56,22 @@ pub fn capture_desktop() -> Result<CaptureResult, String> {
         info.bmiHeader.biCompression = BI_RGB.0;
 
         let mut pixels = vec![0u8; width as usize * height as usize * 4];
-        let scanlines = GetDIBits(
-            mem,
-            bitmap,
-            0,
-            height,
-            Some(pixels.as_mut_ptr() as *mut _),
-            &mut info,
-            DIB_RGB_COLORS,
-        );
+        let scanlines = GetDIBits(mem, bitmap, 0, height, Some(pixels.as_mut_ptr() as *mut _), &mut info, DIB_RGB_COLORS);
 
         let _ = SelectObject(mem, old);
         let _ = DeleteObject(bitmap.into());
         let _ = DeleteDC(mem);
         let _ = ReleaseDC(Some(hwnd), hdc);
 
-        if scanlines == 0 {
-            return Err("Unable to read captured pixels".into());
-        }
+        if scanlines == 0 { return Err("Unable to read captured pixels".into()); }
+        for px in pixels.chunks_exact_mut(4) { px.swap(0, 2); }
 
-        // GetDIBits returns BGRA for a 32-bit BI_RGB bitmap; convert to RGBA before PNG encoding.
-        for px in pixels.chunks_exact_mut(4) {
-            px.swap(0, 2);
-        }
-
-        let rgba = ImageBuffer::<Rgba<u8>, _>::from_raw(width, height, pixels)
-            .ok_or_else(|| "Invalid capture buffer".to_string())?;
-
+        let rgba = ImageBuffer::<Rgba<u8>, _>::from_raw(width, height, pixels).ok_or_else(|| "Invalid capture buffer".to_string())?;
         let mut png = Vec::new();
         let encoder = image::codecs::png::PngEncoder::new(&mut png);
-        image::ImageEncoder::write_image(
-            encoder,
-            rgba.as_raw(),
-            width,
-            height,
-            image::ExtendedColorType::Rgba8,
-        ).map_err(|e| e.to_string())?;
+        image::ImageEncoder::write_image(encoder, rgba.as_raw(), width, height, image::ExtendedColorType::Rgba8).map_err(|e| e.to_string())?;
 
-        Ok(CaptureResult {
-            width,
-            height,
-            png_base64: STANDARD.encode(png),
-        })
+        Ok(CaptureResult { width, height, png_base64: STANDARD.encode(png) })
     }
 }
 
