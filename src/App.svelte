@@ -159,7 +159,7 @@
   async function toggleVoice() {
     if (!(await requestMicrophone())) return;
     if (!recognition) setupVoice();
-    if (!recognition) return;
+    if (!recognition) { await toggleLocalVoice(); return; }
     if (listening) recognition.stop();
     else {
       (window as any).speechSynthesis?.cancel();
@@ -256,15 +256,14 @@
     if (!input || chatBusy) return;
     if (!inputOverride) chatInput = "";
     chatBusy = true;
+    const userMessage: ChatMessage = { role: "user", content: input };
+    chatHistory = [...chatHistory, userMessage].slice(-24);
+    localStorage.setItem("adam-chat-history", JSON.stringify(chatHistory));
     try {
       let agentResult = await invoke<any | null>("agent_route", { input, language: lang });
       if (agentResult) {
         if (agentResult.requires_confirmation) {
-          const approved = window.confirm(agentResult.message + (lang === "ar" ? "
-
-السماح بهذه العملية لهذه الجلسة؟" : "
-
-Allow this action for this session?"));
+          const approved = window.confirm(agentResult.message + (lang === "ar" ? "\n\nالسماح بهذه العملية لهذه الجلسة؟" : "\n\nAllow this action for this session?"));
           if (approved) {
             await setPermission(agentResult.intent === "computer.open" ? "computer.open" : agentResult.intent, "session");
             agentResult = await invoke<any | null>("agent_route", { input, language: lang });
@@ -272,6 +271,8 @@ Allow this action for this session?"));
         }
         if (agentResult) {
           chatReply = agentResult.message;
+          chatHistory = [...chatHistory, { role: "assistant", content: agentResult.message }].slice(-24);
+          localStorage.setItem("adam-chat-history", JSON.stringify(chatHistory));
           speak(agentResult.message);
           if (agentResult.action === "opened" || agentResult.action === "rejected" || agentResult.action === "blocked") return;
         }
@@ -280,6 +281,8 @@ Allow this action for this session?"));
       const localReply = await invoke<string | null>("local_brain_execute", { input, language: lang });
       if (localReply) {
         chatReply = localReply;
+        chatHistory = [...chatHistory, { role: "assistant", content: localReply }].slice(-24);
+        localStorage.setItem("adam-chat-history", JSON.stringify(chatHistory));
         speak(localReply);
         return;
       }
@@ -296,21 +299,25 @@ Allow this action for this session?"));
         if (!cfg.baseUrl || !cfg.model) throw new Error("Provider URL and model are required.");
         const memoriesForContext = await searchMemories(input, 5);
         const memoryContext = memoriesForContext.length
-          ? "
-Relevant local memory:
-" + memoriesForContext.map((m) => "- " + m.content).join("
-")
+          ? "\nRelevant local memory:\n" + memoriesForContext.map((m) => "- " + m.content).join("\n")
           : "";
         const messages: ChatMessage[] = [
           { role: "system", content: persona + " Reply in " + (lang === "ar" ? "Arabic" : "English") + " unless the user asks otherwise." + memoryContext },
-          { role: "user", content: input }
+          ...chatHistory.slice(-12)
         ];
+        chatRequestId = crypto.randomUUID();
         chatReply = "";
-        reply = await cloudChatStream(cfg, messages, (delta) => { chatReply += delta; });
+        reply = await cloudChatStream(cfg, messages, (delta) => { chatReply += delta; }, chatRequestId);
+        chatRequestId = "";
       }
       chatReply = reply;
+      if (reply) {
+        chatHistory = [...chatHistory, { role: "assistant", content: reply }].slice(-24);
+        localStorage.setItem("adam-chat-history", JSON.stringify(chatHistory));
+      }
       speak(reply);
     } catch (e) {
+      chatRequestId = "";
       chatReply = offlineFallback ? String(e) : String(e);
       if (offlineFallback) speak(chatReply);
     } finally {
