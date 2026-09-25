@@ -22,7 +22,7 @@ export class AdamScene {
   private activeAction?: THREE.AnimationAction;
   private model?: THREE.Object3D;
   private bones = new Map<string, THREE.Object3D>();
-  private baseRotations = new Map<string, THREE.Euler>();
+  private baseRotations = new Map<THREE.Object3D, THREE.Euler>();
   private morphTargets: Array<{ mesh: THREE.Mesh; index: number }> = [];
   private talking = false;
   private talkTime = 0;
@@ -122,7 +122,7 @@ export class AdamScene {
       if (!child.name) return;
       const normalized = child.name.toLowerCase().replace(/mixamorig[:_]?/g, "").replace(/[^a-z0-9]/g, "");
       this.bones.set(normalized, child);
-      if (child instanceof THREE.Bone) this.baseRotations.set(normalized, child.rotation.clone());
+      if (child instanceof THREE.Bone) this.baseRotations.set(child, child.rotation.clone());
     });
     const aliases: Record<string,string[]> = {
       head:["head"], neck:["neck"], spine:["spine","spine1","spine2"],
@@ -137,8 +137,8 @@ export class AdamScene {
 
   listAnimations() { return this.actions.map((a) => a.getClip().name); }
   getAnimationState() { return this.state; }
-  setState(state: "idle"|"walk"|"run"|"gesture") { this.state = state; const i=this.stateIndex.get(state); if (i !== undefined) this.playAnimation(i); else if (state === "idle" && this.idleClipIndex >= 0) this.playAnimation(this.idleClipIndex); }
-  setTalking(value: boolean) { this.talking = value; }
+  setState(state: "idle"|"walk"|"run"|"gesture") {\n    this.state = state;\n    const i = this.stateIndex.get(state);\n    if (i !== undefined) this.playAnimation(i);\n    else {\n      this.activeAction?.fadeOut(0.2);\n      this.activeAction = undefined;\n      if (state === "idle" && this.idleClipIndex >= 0) this.playAnimation(this.idleClipIndex);\n      this.idleTime = 0;\n    }\n  }
+  setTalking(value: boolean) { this.talking = value; }\n\n  lookAtScreenPoint(x: number, y: number, width: number, height: number) {\n    const head = this.findBone("head");\n    if (!head || width <= 0 || height <= 0) return;\n    const nx = THREE.MathUtils.clamp((x / width) * 2 - 1, -1, 1);\n    const ny = THREE.MathUtils.clamp((y / height) * 2 - 1, -1, 1);\n    const maxYaw = THREE.MathUtils.degToRad(15);\n    const maxPitch = THREE.MathUtils.degToRad(10);\n    const base = this.baseRotations.get(head);\n    if (!base) return;\n    head.rotation.y = THREE.MathUtils.lerp(head.rotation.y, base.y + nx * maxYaw, 0.18);\n    head.rotation.x = THREE.MathUtils.lerp(head.rotation.x, base.x - ny * maxPitch, 0.18);\n  }
 
   private indexMouthMorphs(obj: THREE.Object3D) {
     obj.traverse((child) => {
@@ -191,7 +191,7 @@ export class AdamScene {
   }
 
   private applyProceduralIdle(dt: number) {
-    if ((this.activeAction && this.idleClipIndex >= 0) || !this.model || !this.capabilities.hasRig) return;
+    if ((this.activeAction && this.stateIndex.has(this.state)) || !this.model || !this.capabilities.hasRig) return;
     this.idleTime += dt;
     const t = this.idleTime;
     const spine = this.findBone("spine");
@@ -206,7 +206,7 @@ export class AdamScene {
 
     const set = (bone: THREE.Object3D | undefined, axis: "x" | "y" | "z", value: number) => {
       if (!bone) return;
-      const base = this.baseRotations.get(bone.name.toLowerCase());
+      const base = this.baseRotations.get(bone);
       if (base) bone.rotation[axis] = base[axis] + value;
     };
 
