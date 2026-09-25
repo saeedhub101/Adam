@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
   import { t, type Lang } from "./lib/i18n";
   import { AdamScene } from "./lib/scene";
