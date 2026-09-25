@@ -18,6 +18,7 @@ export class AdamScene {
   private morphTargets: Array<{mesh: THREE.Mesh; index: number}> = [];
   private talking = false;
   private talkTime = 0;
+  private idleClipIndex = -1;
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
@@ -59,7 +60,8 @@ export class AdamScene {
           action.clampWhenFinished = false;
           return action;
         });
-        this.playAnimation(0);
+        this.idleClipIndex = this.actions.findIndex((action) => /idle|breath|stand|rest/i.test(action.getClip().name));
+        if (this.idleClipIndex >= 0) this.playAnimation(this.idleClipIndex);
       }
     } catch {
       this.createFallback();
@@ -126,6 +128,7 @@ export class AdamScene {
   stopAnimation() {
     this.activeAction?.fadeOut(0.2);
     this.activeAction = undefined;
+    this.idleClipIndex = -1;
     this.idleTime = 0;
   }
 
@@ -138,7 +141,7 @@ export class AdamScene {
   }
 
   private applyProceduralIdle(dt: number) {
-    if (this.activeAction || !this.model) return;
+    if ((this.activeAction && this.idleClipIndex >= 0) || !this.model) return;
     this.idleTime += dt;
     const t = this.idleTime;
     const spine = this.findBone("spine", "spine1", "spine_1");
