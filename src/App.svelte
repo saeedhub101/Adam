@@ -5,6 +5,7 @@
   import { setCharacterSize, setIgnoreCursorEvents, savePosition, loadPosition } from "./lib/desktop";
   import { addMemory, listMemories, searchMemories, type Memory } from "./lib/memory";
   import { addReminder, listReminders, completeReminder, type Reminder } from "./lib/reminders";
+  import { cloudChat, hasApiKey, saveApiKey, deleteApiKey, type ChatMessage } from "./lib/cloud";
 
   let memories: Memory[] = [];
   let memoryQuery = "";
@@ -14,7 +15,7 @@
   let reminders: Reminder[] = [];
   let reminderOpen = false;
   let reminderTitle = "";
-  let reminderDue = "";
+  let reminderDue = "";\n  let chatOpen = false; let chatInput = ""; let chatReply = ""; let cloudKey = ""; let cloudReady = false; let chatBusy = false;\n  const cloudConfig = { baseUrl: "https://api.openai.com/v1", model: "gpt-4o-mini" };
 
   let canvas: HTMLCanvasElement;
   let scene: AdamScene;
@@ -66,7 +67,7 @@
     setupVoice();
     await scene.load("/adam.glb");
     window.addEventListener("resize", () => scene.resize());
-    await loadPosition();
+    const position = await loadPosition(); if (position) await savePosition(position.x, position.y);\n    cloudReady = await hasApiKey();
     await setIgnoreCursorEvents(false);
   });
 
@@ -92,7 +93,7 @@
     await refreshReminders();
   }
 
-  async function resizeAdam() {
+  async function saveCloudKey() { if (!cloudKey.trim()) return; await saveApiKey(cloudKey); cloudKey = ""; cloudReady = true; }\n  async function sendChat() { if (!chatInput.trim() || chatBusy || !cloudReady) return; chatBusy = true; const input = chatInput.trim(); chatInput = ""; try { const messages: ChatMessage[] = [{ role: "system", content: "You are Adam, a helpful desktop AI companion. Reply in " + (lang === "ar" ? "Arabic" : "English") + " unless the user asks otherwise." }, { role: "user", content: input }]; chatReply = await cloudChat(cloudConfig, messages); } catch (e) { chatReply = String(e); } finally { chatBusy = false; } }\n\n  async function resizeAdam() {
     await setCharacterSize(size);
     scene?.resize();
   }
@@ -129,7 +130,7 @@
       <button on:click|stopPropagation={chooseCharacter}>{t(lang,"changeCharacter")}</button>
       <label>{t(lang,"size")} {size}% <input type="range" min="60" max="160" bind:value={size} on:input={resizeAdam}/></label>
       <button on:click|stopPropagation={() => { lang = lang === "en" ? "ar" : "en"; setupVoice(); }}>{lang === "en" ? "العربية" : "English"}</button>
-      <button class:active={listening} on:click|stopPropagation={toggleVoice}>{listening ? "● " : "🎙 "} {listening ? (lang === "ar" ? "استماع..." : "Listening...") : (lang === "ar" ? "الميكروفون" : "Microphone")}</button>
+      <button on:click|stopPropagation={() => chatOpen = !chatOpen}>{lang === "ar" ? "محادثة الذكاء الاصطناعي" : "AI Chat"}</button>\n      {#if chatOpen}<div class="chat-panel">{#if !cloudReady}<input type="password" placeholder="API key" bind:value={cloudKey} /><button on:click|stopPropagation={saveCloudKey}>Save key</button>{:else}<input placeholder={lang === "ar" ? "اكتب لآدم" : "Message Adam"} bind:value={chatInput} on:keydown={(e) => e.key === "Enter" && sendChat()} /><button disabled={chatBusy} on:click|stopPropagation={sendChat}>{chatBusy ? "..." : "Send"}</button><button on:click|stopPropagation={async () => { await deleteApiKey(); cloudReady = false; }}>Remove key</button>{/if}{#if chatReply}<div class="chat-reply">{chatReply}</div>{/if}</div>{/if}\n      <button class:active={listening} on:click|stopPropagation={toggleVoice}>{listening ? "● " : "🎙 "} {listening ? (lang === "ar" ? "استماع..." : "Listening...") : (lang === "ar" ? "الميكروفون" : "Microphone")}</button>
       {#if transcript}<div class="transcript">{transcript}</div>{/if}
       <div class="memory-panel">
         <button on:click|stopPropagation={async () => { reminderOpen = !reminderOpen; if (reminderOpen) await refreshReminders(); }}>
