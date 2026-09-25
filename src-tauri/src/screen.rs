@@ -26,20 +26,20 @@ pub fn capture_desktop() -> Result<CaptureResult, String> {
 
         let mem = CreateCompatibleDC(hdc);
         if mem.0 == 0 {
-            let _ = ReleaseDC(hwnd, hdc);
+            let _ = ReleaseDC(Some(hwnd), hdc);
             return Err("Unable to create capture DC".into());
         }
         let bitmap = CreateCompatibleBitmap(hdc, width as i32, height as i32);
-        if bitmap.0 == 0 {
+        if bitmap.0.is_null() {
             let _ = DeleteDC(mem);
             let _ = ReleaseDC(hwnd, hdc);
             return Err("Unable to create capture bitmap".into());
         }
-        let old = SelectObject(mem, bitmap);
-        let copied = BitBlt(mem, 0, 0, width as i32, height as i32, hdc, left, top, SRCCOPY | CAPTUREBLT).is_ok();
+        let old = SelectObject(mem, bitmap.into());
+        let copied = BitBlt(mem, 0, 0, width as i32, height as i32, Some(hdc), left, top, SRCCOPY | CAPTUREBLT).is_ok();
         if !copied {
             let _ = SelectObject(mem, old);
-            let _ = DeleteObject(bitmap);
+            let _ = DeleteObject(bitmap.into());
             let _ = DeleteDC(mem);
             let _ = ReleaseDC(hwnd, hdc);
             return Err("Screen capture failed".into());
