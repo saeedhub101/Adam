@@ -86,6 +86,34 @@ fn write_state(app: &tauri::AppHandle, state: &WindowState) -> Result<(), String
     .map_err(|e| e.to_string())
 }
 
+#[cfg(target_os = "windows")]
+fn grant_webview_media_permissions(window: &WebviewWindow) -> Result<(), String> {
+    window.with_webview(|webview| {
+        use webview2_com::Microsoft::Web::WebView2::Win32::{
+            COREWEBVIEW2_PERMISSION_KIND, COREWEBVIEW2_PERMISSION_KIND_CAMERA,
+            COREWEBVIEW2_PERMISSION_KIND_MICROPHONE, COREWEBVIEW2_PERMISSION_STATE_ALLOW,
+        };
+        use webview2_com::PermissionRequestedEventHandler;
+        let core = unsafe { webview.controller().CoreWebView2() }.map_err(|e| e.to_string())?;
+        let handler = PermissionRequestedEventHandler::create(Box::new(
+            |_sender, args| {
+                let Some(args) = args else { return Ok(()); };
+                unsafe {
+                    let mut kind = COREWEBVIEW2_PERMISSION_KIND::default();
+                    args.PermissionKind(&mut kind)?;
+                    if kind == COREWEBVIEW2_PERMISSION_KIND_MICROPHONE || kind == COREWEBVIEW2_PERMISSION_KIND_CAMERA {
+                        args.SetState(COREWEBVIEW2_PERMISSION_STATE_ALLOW)?;
+                    }
+                }
+                Ok(())
+            },
+        ));
+        let mut token = 0i64;
+        unsafe { core.add_PermissionRequested(&handler, &mut token) }.map_err(|e| e.to_string())?;
+        Ok::<(), String>(())
+    }).map_err(|e| e.to_string())?
+}
+
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
@@ -93,6 +121,8 @@ fn main() {
                 .get_webview_window("main")
                 .ok_or("main window missing")?;
             let _ = win.set_ignore_cursor_events(false);
+            #[cfg(target_os = "windows")]
+            grant_webview_media_permissions(&win)?;
             let show = MenuItemBuilder::with_id("show", "Show Adam").build(app)?;
             let chat = MenuItemBuilder::with_id("chat", "Open AI Chat").build(app)?;
             let settings = MenuItemBuilder::with_id("settings", "Open Settings").build(app)?;
