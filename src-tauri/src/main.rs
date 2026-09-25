@@ -52,7 +52,7 @@ fn save_position(app: tauri::AppHandle, window: WebviewWindow, x: i32, y: i32) -
   let dir = app.path().app_data_dir().map_err(|e|e.to_string())?;
   fs::create_dir_all(&dir).map_err(|e|e.to_string())?;
   let _ = window.set_position(PhysicalPosition::new(x,y));
-  fs::write(state_path(&app), format!("{{"x":{},"y":{}}}",x,y)).map_err(|e|e.to_string())
+  fs::write(state_path(&app), format!("{{\"x\":{},\"y\":{}}}",x,y)).map_err(|e|e.to_string())
 }
 
 #[tauri::command]
