@@ -133,7 +133,8 @@
     await setupLocalVoice();
     if (!localVoice) return;
     if (localVoice.listening) { localVoice.stop(); return; }
-    listening = true;\n    try { await localVoice.start(lang === "ar" ? "ar" : "en", async (text) => { transcript = text; listening = false; await sendChat(text); }); } catch (e) { listening = false; micError = String(e); }
+    listening = true;
+    try { await localVoice.start(lang === "ar" ? "ar" : "en", async (text) => { transcript = text; listening = false; await sendChat(text); }); } catch (e) { listening = false; micError = String(e); }
   }
 
   function setupVoice() {
@@ -189,12 +190,14 @@
     animationNames = scene.listAnimations();
     renderQuality = (localStorage.getItem("adam-render-quality") as "auto"|"low"|"medium"|"high") || "auto";
     scene.setQuality(renderQuality); renderStatus = scene.getRenderStatus();
-    try { savedCharacters = JSON.parse(localStorage.getItem("adam-character-history") || "[]"); } catch { savedCharacters = []; }\n    try { chatHistory = JSON.parse(localStorage.getItem("adam-chat-history") || "[]"); } catch { chatHistory = []; }
+    try { savedCharacters = JSON.parse(localStorage.getItem("adam-character-history") || "[]"); } catch { savedCharacters = []; }
+    try { chatHistory = JSON.parse(localStorage.getItem("adam-chat-history") || "[]"); } catch { chatHistory = []; }
     window.addEventListener("resize", () => scene.resize());
     const appWindow = getCurrentWindow();
     await appWindow.onMoved(({ payload }) => { clearTimeout(moveSaveTimer); moveSaveTimer = setTimeout(() => { void savePosition(payload.x, payload.y); }, 250); });
     await listen("adam://open-chat", () => { showMenu = true; chatOpen = true; clickThrough = false; void setIgnoreCursorEvents(false); });
-    await listen("adam://open-settings", () => { showMenu = true; safetyOpen = true; clickThrough = false; void setIgnoreCursorEvents(false); });\n    await listen<{ id:number; title:string; dueAt:string }>("adam://reminder-due", ({ payload }) => { reminderToast = (lang === "ar" ? "حان وقت التذكير: " : "Reminder: ") + payload.title; void refreshReminders(); speak(reminderToast); window.setTimeout(() => reminderToast = "", 8000); });
+    await listen("adam://open-settings", () => { showMenu = true; safetyOpen = true; clickThrough = false; void setIgnoreCursorEvents(false); });
+    await listen<{ id:number; title:string; dueAt:string }>("adam://reminder-due", ({ payload }) => { reminderToast = (lang === "ar" ? "حان وقت التذكير: " : "Reminder: ") + payload.title; void refreshReminders(); speak(reminderToast); window.setTimeout(() => reminderToast = "", 8000); });
     const position = await loadPosition();
     if (position) {
       size = position.size ?? 100;
@@ -240,7 +243,10 @@
     await refreshReminders();
   }
 
-  async function saveCloudKey() { if (!cloudKey.trim()) return; await saveApiKey(cloudKey); cloudKey = ""; cloudReady = true; }\n  async function testProvider() { providerStatus = lang === "ar" ? "جارٍ الاختبار..." : "Testing..."; try { providerStatus = await cloudTestConnection(activeConfig().baseUrl); } catch (e) { providerStatus = String(e); } }\n  function clearChatHistory() { chatHistory = []; localStorage.removeItem("adam-chat-history"); chatReply = ""; }\n  async function cancelChat() { if (chatRequestId) await cloudCancel(chatRequestId); }
+  async function saveCloudKey() { if (!cloudKey.trim()) return; await saveApiKey(cloudKey); cloudKey = ""; cloudReady = true; }
+  async function testProvider() { providerStatus = lang === "ar" ? "جارٍ الاختبار..." : "Testing..."; try { providerStatus = await cloudTestConnection(activeConfig().baseUrl); } catch (e) { providerStatus = String(e); } }
+  function clearChatHistory() { chatHistory = []; localStorage.removeItem("adam-chat-history"); chatReply = ""; }
+  async function cancelChat() { if (chatRequestId) await cloudCancel(chatRequestId); }
   function activeConfig() { const p = providers[provider as keyof typeof providers]; return { baseUrl: provider === "custom" ? customBaseUrl : p.baseUrl, model: model || p.model }; }
   function saveCloudConfig() { localStorage.setItem("adam-cloud-config", JSON.stringify({ provider, model, customBaseUrl, persona, offlineFallback })); chatReply = lang === "ar" ? "تم حفظ الإعدادات." : "AI settings saved."; }
   function selectProvider() { const p = providers[provider as keyof typeof providers]; if (provider !== "custom") model = p.model; }
@@ -254,7 +260,11 @@
       let agentResult = await invoke<any | null>("agent_route", { input, language: lang });
       if (agentResult) {
         if (agentResult.requires_confirmation) {
-          const approved = window.confirm(agentResult.message + (lang === "ar" ? "\n\nالسماح بهذه العملية لهذه الجلسة؟" : "\n\nAllow this action for this session?"));
+          const approved = window.confirm(agentResult.message + (lang === "ar" ? "
+
+السماح بهذه العملية لهذه الجلسة؟" : "
+
+Allow this action for this session?"));
           if (approved) {
             await setPermission(agentResult.intent === "computer.open" ? "computer.open" : agentResult.intent, "session");
             agentResult = await invoke<any | null>("agent_route", { input, language: lang });
@@ -286,7 +296,10 @@
         if (!cfg.baseUrl || !cfg.model) throw new Error("Provider URL and model are required.");
         const memoriesForContext = await searchMemories(input, 5);
         const memoryContext = memoriesForContext.length
-          ? "\nRelevant local memory:\n" + memoriesForContext.map((m) => "- " + m.content).join("\n")
+          ? "
+Relevant local memory:
+" + memoriesForContext.map((m) => "- " + m.content).join("
+")
           : "";
         const messages: ChatMessage[] = [
           { role: "system", content: persona + " Reply in " + (lang === "ar" ? "Arabic" : "English") + " unless the user asks otherwise." + memoryContext },
