@@ -5,7 +5,7 @@
   import { setCharacterSize, setIgnoreCursorEvents, savePosition, loadPosition } from "./lib/desktop";
   import { addMemory, listMemories, searchMemories, updateMemory, deleteMemory, type Memory } from "./lib/memory";
   import { addReminder, listReminders, completeReminder, type Reminder } from "./lib/reminders";
-  import { cloudChat, hasApiKey, saveApiKey, deleteApiKey, type ChatMessage } from "./lib/cloud";
+  import { cloudChat, cloudChatStream, hasApiKey, saveApiKey, deleteApiKey, type ChatMessage } from "./lib/cloud";
   import { listPermissions, setPermission, listActivity, emergencyStop, type Permission, type Activity } from "./lib/permissions";
 
   let memories: Memory[] = [];
@@ -138,7 +138,7 @@
           { role: "system", content: persona + " Reply in " + (lang === "ar" ? "Arabic" : "English") + " unless the user asks otherwise." + memoryContext },
           { role: "user", content: input }
         ];
-        reply = await cloudChat(cfg, messages);
+        reply = await cloudChatStream(cfg, messages, (delta) => { chatReply += delta; });
       }
       chatReply = reply;
       speak(reply);
