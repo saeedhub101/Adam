@@ -8,6 +8,9 @@ export async function setIgnoreCursorEvents(ignore: boolean) {
 export async function setCharacterSize(size: number) {
   await invoke("set_character_size", { size: Math.round(size) });
 }
+export async function setCharacterDimensions(width: number, height: number, size: number) {
+  await invoke("set_character_dimensions", { width: Math.round(width), height: Math.round(height), size: Math.round(size) });
+}
 export async function savePosition(x: number, y: number) {
   await invoke("save_position", { x: Math.round(x), y: Math.round(y) });
 }
