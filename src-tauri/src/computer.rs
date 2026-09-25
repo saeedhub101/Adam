@@ -34,9 +34,7 @@ pub fn open_target(target: &str) -> Result<String, String> {
         "notepad" | "المفكرة" => ("notepad.exe", &[], "Notepad"),
         "calculator" | "calc" | "الحاسبة" => ("calc.exe", &[], "Calculator"),
         "paint" | "mspaint" | "الرسام" => ("mspaint.exe", &[], "Paint"),
-        "explorer" | "file explorer" | "الملفات" => {
-            ("explorer.exe", &[], "File Explorer")
-        }
+        "explorer" | "file explorer" | "الملفات" => ("explorer.exe", &[], "File Explorer"),
         _ if key.starts_with("https://") || key.starts_with("http://") => {
             let child = Command::new("rundll32.exe")
                 .args(["url.dll,FileProtocolHandler", target.trim()])
