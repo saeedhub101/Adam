@@ -52,8 +52,19 @@ jobs:
         run: npm run check
       - name: Frontend production build
         run: npm run build
+      - name: Normalize Rust formatting
+        shell: pwsh
+        run: |
+          cargo fmt --all --manifest-path src-tauri/Cargo.toml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src-tauri
+          if (-not (git diff --cached --quiet)) {
+            git commit -m "chore: normalize Rust formatting"
+            git push
+          }
       - name: Rust format check
-        run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+        run: cargo fmt --all --manifest-path src-tauri/Cargo.toml -- --check
       - name: Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml
       - name: Tauri Windows production build
