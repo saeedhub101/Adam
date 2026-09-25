@@ -17,6 +17,9 @@ export class AdamScene {
   clock = new THREE.Clock();
   root = new THREE.Group();
   private loader = new GLTFLoader();
+  private objectUrls: string[] = [];
+  private quality: "auto" | "low" | "medium" | "high" = "auto";
+  private contextLost = false;
   private mixer?: THREE.AnimationMixer;
   private actions: THREE.AnimationAction[] = [];
   private activeAction?: THREE.AnimationAction;
@@ -40,8 +43,12 @@ export class AdamScene {
       canvas, alpha: true, antialias: true, preserveDrawingBuffer: false,
       powerPreference: "high-performance"
     });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2.5));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2.0));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.domElement.addEventListener("webglcontextlost", (event) => { event.preventDefault(); this.contextLost = true; });
+    this.renderer.domElement.addEventListener("webglcontextrestored", () => { this.contextLost = false; this.renderer.setClearColor(0x000000, 0); this.resize(); });
     this.renderer.setClearColor(0x000000, 0);
     this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
     this.camera.position.set(0, 0, 8);
@@ -54,7 +61,15 @@ export class AdamScene {
     this.animate();
   }
 
-  getCapabilities(): CharacterCapabilities { return { ...this.capabilities }; }
+  getCapabilities(): CharacterCapabilities { return { ...this.capabilities, boneMap: { ...this.capabilities.boneMap } }; }
+  getRenderStatus() { return { contextLost: this.contextLost, quality: this.quality, pixelRatio: this.renderer.getPixelRatio(), webgl2: !!this.renderer.capabilities?.isWebGL2 }; }
+  setQuality(quality: "auto" | "low" | "medium" | "high") {
+    this.quality = quality;
+    const dpr = window.devicePixelRatio || 1;
+    const ratio = quality === "low" ? 1 : quality === "medium" ? Math.min(dpr, 1.5) : quality === "high" ? Math.min(dpr, 2.5) : Math.min(dpr, 2);
+    this.renderer.setPixelRatio(ratio);
+    this.resize();
+  }
 
   async load(url: string): Promise<CharacterCapabilities> {
     this.root.clear();
@@ -117,6 +132,29 @@ export class AdamScene {
     return this.getCapabilities();
   }
 
+  async loadFiles(files: File[]): Promise<CharacterCapabilities> {
+    const valid = files.filter((f) => /\.(glb|gltf|bin|png|jpg|jpeg|webp|ktx2)$/i.test(f.name));
+    const main = valid.find((f) => /\.(glb|gltf)$/i.test(f.name));
+    if (!main) throw new Error("No GLB/GLTF model was selected.");
+    if (main.size > 200 * 1024 * 1024) throw new Error("Character file is larger than 200MB.");
+    this.objectUrls.forEach((u) => URL.revokeObjectURL(u)); this.objectUrls = [];
+    const map = new Map<string, string>();
+    for (const file of valid) { const url = URL.createObjectURL(file); this.objectUrls.push(url); map.set(file.name.toLowerCase(), url); }
+    const manager = new THREE.LoadingManager();
+    manager.setURLModifier((requested) => { const clean = decodeURIComponent(requested).split(/[?#]/)[0].replace(/\\/g, "/"); const base = clean.substring(clean.lastIndexOf("/") + 1).toLowerCase(); return map.get(clean.toLowerCase()) ?? map.get(base) ?? requested; });
+    const loader = new GLTFLoader(manager);
+    const url = map.get(main.name.toLowerCase());
+    if (!url) throw new Error("Unable to create a local model URL.");
+    const gltf = await loader.loadAsync(url);
+    this.root.clear(); this.mixer?.stopAllAction(); this.mixer = undefined; this.actions = []; this.activeAction = undefined;
+    this.model = gltf.scene; this.bones.clear(); this.boneAliases.clear(); this.stateIndex.clear(); this.baseRotations.clear(); this.morphTargets = [];
+    this.root.add(gltf.scene); this.indexBones(gltf.scene); this.indexMouthMorphs(gltf.scene); this.fit(gltf.scene);
+    this.capabilities = { loaded: true, hasRig: this.bones.size > 0, hasAnimations: gltf.animations.length > 0, hasFacialMorphs: this.morphTargets.length > 0, animationCount: gltf.animations.length, boneMap: {} };
+    gltf.animations.forEach((clip, i) => { const n = clip.name.toLowerCase(); if (!this.stateIndex.has("idle") && /idle|breath|stand|rest/.test(n)) this.stateIndex.set("idle", i); if (!this.stateIndex.has("walk") && /walk|walking|locomotion/.test(n)) this.stateIndex.set("walk", i); if (!this.stateIndex.has("run") && /run|jog|sprint/.test(n)) this.stateIndex.set("run", i); if (!this.stateIndex.has("gesture") && /wave|gesture|greet|point|clap/.test(n)) this.stateIndex.set("gesture", i); });
+    for (const key of ["head","neck","spine","leftArm","rightArm","leftForeArm","rightForeArm","leftHand","rightHand","leftUpLeg","rightUpLeg","leftLeg","rightLeg","leftFoot","rightFoot","leftEye","rightEye"]) this.capabilities.boneMap[key] = !!this.boneAliases.get(key);
+    if (gltf.animations.length) { this.mixer = new THREE.AnimationMixer(gltf.scene); this.actions = gltf.animations.map((clip) => this.mixer!.clipAction(clip)); this.actions.forEach((action) => { action.enabled = true; action.clampWhenFinished = false; }); this.idleClipIndex = this.actions.findIndex((a) => /idle|breath|stand|rest/i.test(a.getClip().name)); if (this.idleClipIndex >= 0) this.playAnimation(this.idleClipIndex); }
+    return this.getCapabilities();
+  }
   private indexBones(obj: THREE.Object3D) {
     obj.traverse((child) => {
       if (!child.name) return;
@@ -161,6 +199,14 @@ export class AdamScene {
     if (!base) return;
     head.rotation.y = THREE.MathUtils.lerp(head.rotation.y, base.y + nx * maxYaw, 0.18);
     head.rotation.x = THREE.MathUtils.lerp(head.rotation.x, base.x - ny * maxPitch, 0.18);
+    for (const key of ["leftEye", "rightEye"]) {
+      const eye = this.findBone(key);
+      const eyeBase = eye ? this.baseRotations.get(eye) : undefined;
+      if (eye && eyeBase) {
+        eye.rotation.y = THREE.MathUtils.lerp(eye.rotation.y, eyeBase.y + nx * THREE.MathUtils.degToRad(8), 0.25);
+        eye.rotation.x = THREE.MathUtils.lerp(eye.rotation.x, eyeBase.x - ny * THREE.MathUtils.degToRad(6), 0.25);
+      }
+    }
   }
 
   private indexMouthMorphs(obj: THREE.Object3D) {
@@ -277,12 +323,20 @@ export class AdamScene {
   }
 
   private fit(obj: THREE.Object3D) {
+    obj.updateWorldMatrix(true, true);
     const box = new THREE.Box3().setFromObject(obj);
     const center = box.getCenter(new THREE.Vector3());
     const size = box.getSize(new THREE.Vector3());
     obj.position.sub(center);
     const scale = 1.7 / Math.max(size.x, size.y, size.z, 0.01);
     obj.scale.setScalar(scale);
+  }
+
+  dispose() {
+    this.objectUrls.forEach((u) => URL.revokeObjectURL(u));
+    this.objectUrls = [];
+    this.root.clear();
+    this.renderer.dispose();
   }
 
   resize() {
@@ -303,6 +357,6 @@ export class AdamScene {
     this.mixer?.update(dt);
     this.applyProceduralIdle(dt);
     this.applyTalking(dt);
-    this.renderer.render(this.scene, this.camera);
+    if (!this.contextLost) this.renderer.render(this.scene, this.camera);
   };
 }
