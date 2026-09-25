@@ -1,51 +1,64 @@
-use rusqlite::{params,Connection};
+use rusqlite::{params, Connection};
 use std::path::Path;
 
-pub fn init(path:&Path)->Result<(),String>{
- let c=Connection::open(path).map_err(|e|e.to_string())?;
- c.execute_batch("CREATE TABLE IF NOT EXISTS calendar_events (id INTEGER PRIMARY KEY AUTOINCREMENT,title TEXT NOT NULL,start_at TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP); CREATE INDEX IF NOT EXISTS idx_calendar_start ON calendar_events(start_at);").map_err(|e|e.to_string())
+pub fn init(path: &Path) -> Result<(), String> {
+    let c = Connection::open(path).map_err(|e| e.to_string())?;
+    c.execute_batch("CREATE TABLE IF NOT EXISTS calendar_events (id INTEGER PRIMARY KEY AUTOINCREMENT,title TEXT NOT NULL,start_at TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP); CREATE INDEX IF NOT EXISTS idx_calendar_start ON calendar_events(start_at);").map_err(|e|e.to_string())
 }
-pub fn add(path:&Path,title:&str,start_at:&str)->Result<i64,String>{
- let c=Connection::open(path).map_err(|e|e.to_string())?;
- c.execute("INSERT INTO calendar_events(title,start_at) VALUES(?1,?2)",params![title,start_at]).map_err(|e|e.to_string())?;
- Ok(c.last_insert_rowid())
+pub fn add(path: &Path, title: &str, start_at: &str) -> Result<i64, String> {
+    let c = Connection::open(path).map_err(|e| e.to_string())?;
+    c.execute(
+        "INSERT INTO calendar_events(title,start_at) VALUES(?1,?2)",
+        params![title, start_at],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(c.last_insert_rowid())
 }
-pub fn list(path:&Path)->Result<Vec<(i64,String,String)>,String>{
- let c=Connection::open(path).map_err(|e|e.to_string())?;
- let mut s=c.prepare("SELECT id,title,start_at FROM calendar_events ORDER BY start_at ASC").map_err(|e|e.to_string())?;
- let rows=s.query_map([],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).map_err(|e|e.to_string())?;
- rows.map(|r|r.map_err(|e|e.to_string())).collect()
+pub fn list(path: &Path) -> Result<Vec<(i64, String, String)>, String> {
+    let c = Connection::open(path).map_err(|e| e.to_string())?;
+    let mut s = c
+        .prepare("SELECT id,title,start_at FROM calendar_events ORDER BY start_at ASC")
+        .map_err(|e| e.to_string())?;
+    let rows = s
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+        .map_err(|e| e.to_string())?;
+    rows.map(|r| r.map_err(|e| e.to_string())).collect()
 }
-pub fn delete(path:&Path,id:i64)->Result<(),String>{
- let c=Connection::open(path).map_err(|e|e.to_string())?;
- c.execute("DELETE FROM calendar_events WHERE id=?1",params![id]).map_err(|e|e.to_string()).map(|_|())
+pub fn delete(path: &Path, id: i64) -> Result<(), String> {
+    let c = Connection::open(path).map_err(|e| e.to_string())?;
+    c.execute("DELETE FROM calendar_events WHERE id=?1", params![id])
+        .map_err(|e| e.to_string())
+        .map(|_| ())
 }
 
 #[cfg(test)]
 mod tests {
- use super::*;
- use std::path::PathBuf;
- use std::time::{SystemTime,UNIX_EPOCH};
+    use super::*;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
- fn temp_db()->PathBuf{
-  let id=SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
-  std::env::temp_dir().join(format!("adam-calendar-{id}.db"))
- }
+    fn temp_db() -> PathBuf {
+        let id = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!("adam-calendar-{id}.db"))
+    }
 
- #[test]
- fn calendar_crud_round_trip(){
-  let path=temp_db();
-  init(&path).unwrap();
-  let first=add(&path,"School","2026-09-26T10:00:00").unwrap();
-  let second=add(&path,"Doctor","2026-09-25T15:00:00").unwrap();
-  let rows=list(&path).unwrap();
-  assert_eq!(rows.len(),2);
-  assert_eq!(rows[0].0,second);
-  assert_eq!(rows[1].0,first);
-  delete(&path,first).unwrap();
-  let rows=list(&path).unwrap();
-  assert_eq!(rows.len(),1);
-  assert_eq!(rows[0].0,second);
-  let _=std::fs::remove_file(path);
- }
+    #[test]
+    fn calendar_crud_round_trip() {
+        let path = temp_db();
+        init(&path).unwrap();
+        let first = add(&path, "School", "2026-09-26T10:00:00").unwrap();
+        let second = add(&path, "Doctor", "2026-09-25T15:00:00").unwrap();
+        let rows = list(&path).unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].0, second);
+        assert_eq!(rows[1].0, first);
+        delete(&path, first).unwrap();
+        let rows = list(&path).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].0, second);
+        let _ = std::fs::remove_file(path);
+    }
 }

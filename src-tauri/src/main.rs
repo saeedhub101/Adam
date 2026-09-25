@@ -1,9 +1,9 @@
 mod ai;
-mod memory;
-mod reminders;
-mod permissions;
-mod local_brain;
 mod calendar;
+mod local_brain;
+mod memory;
+mod permissions;
+mod reminders;
 
 use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf};
@@ -20,16 +20,27 @@ struct WindowState {
 }
 
 fn state_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    Ok(app.path().app_data_dir().map_err(|e| e.to_string())?.join("window.json"))
+    Ok(app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("window.json"))
 }
 
 fn memory_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    Ok(app.path().app_data_dir().map_err(|e| e.to_string())?.join("adam.db"))
+    Ok(app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("adam.db"))
 }
 
 fn clamp_position(window: &WebviewWindow, x: i32, y: i32, size: PhysicalSize<u32>) -> (i32, i32) {
     let monitor = window
-        .monitor_from_point(x as f64 + size.width as f64 / 2.0, y as f64 + size.height as f64 / 2.0)
+        .monitor_from_point(
+            x as f64 + size.width as f64 / 2.0,
+            y as f64 + size.height as f64 / 2.0,
+        )
         .ok()
         .flatten()
         .or_else(|| window.current_monitor().ok().flatten())
@@ -62,14 +73,19 @@ fn write_state(app: &tauri::AppHandle, state: &WindowState) -> Result<(), String
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
-    fs::write(path, serde_json::to_string_pretty(state).map_err(|e| e.to_string())?)
-        .map_err(|e| e.to_string())
+    fs::write(
+        path,
+        serde_json::to_string_pretty(state).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())
 }
 
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
-            let win = app.get_webview_window("main").ok_or("main window missing")?;
+            let win = app
+                .get_webview_window("main")
+                .ok_or("main window missing")?;
             let _ = win.set_ignore_cursor_events(false);
 
             let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
@@ -126,33 +142,57 @@ fn main() {
 
 #[tauri::command]
 fn set_ignore_cursor_events(window: WebviewWindow, ignore: bool) -> Result<(), String> {
-    window.set_ignore_cursor_events(ignore).map_err(|e| e.to_string())
+    window
+        .set_ignore_cursor_events(ignore)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn set_character_size(app: tauri::AppHandle, window: WebviewWindow, size: u32) -> Result<(), String> {
+fn set_character_size(
+    app: tauri::AppHandle,
+    window: WebviewWindow,
+    size: u32,
+) -> Result<(), String> {
     let size = size.clamp(60, 160);
     let scale = size as f64 / 100.0;
     let new_size = PhysicalSize::new(
         (BASE_WIDTH as f64 * scale) as u32,
         (BASE_HEIGHT as f64 * scale) as u32,
     );
-    let pos = window.outer_position().unwrap_or(PhysicalPosition::new(0, 0));
+    let pos = window
+        .outer_position()
+        .unwrap_or(PhysicalPosition::new(0, 0));
     let (x, y) = clamp_position(&window, pos.x, pos.y, new_size);
     window.set_size(new_size).map_err(|e| e.to_string())?;
-    window.set_position(PhysicalPosition::new(x, y)).map_err(|e| e.to_string())?;
+    window
+        .set_position(PhysicalPosition::new(x, y))
+        .map_err(|e| e.to_string())?;
     write_state(&app, &WindowState { x, y, size })
 }
 
 #[tauri::command]
-fn save_position(app: tauri::AppHandle, window: WebviewWindow, x: i32, y: i32) -> Result<(), String> {
-    let outer = window.outer_size().unwrap_or(PhysicalSize::new(BASE_WIDTH, BASE_HEIGHT));
+fn save_position(
+    app: tauri::AppHandle,
+    window: WebviewWindow,
+    x: i32,
+    y: i32,
+) -> Result<(), String> {
+    let outer = window
+        .outer_size()
+        .unwrap_or(PhysicalSize::new(BASE_WIDTH, BASE_HEIGHT));
     let current_size = read_state(&app)?.map(|s| s.size).unwrap_or(100);
     let (px, py) = clamp_position(&window, x, y, outer);
     window
         .set_position(PhysicalPosition::new(px, py))
         .map_err(|e| e.to_string())?;
-    write_state(&app, &WindowState { x: px, y: py, size: current_size })
+    write_state(
+        &app,
+        &WindowState {
+            x: px,
+            y: py,
+            size: current_size,
+        },
+    )
 }
 
 #[tauri::command]
@@ -162,19 +202,40 @@ fn load_position(app: tauri::AppHandle) -> Result<Option<WindowState>, String> {
 
 #[tauri::command]
 fn memory_add(app: tauri::AppHandle, content: String, kind: Option<String>) -> Result<i64, String> {
-    memory::add(&memory_path(&app)?, &content, kind.as_deref().unwrap_or("note"))
+    memory::add(
+        &memory_path(&app)?,
+        &content,
+        kind.as_deref().unwrap_or("note"),
+    )
 }
 #[tauri::command]
-fn memory_list(app: tauri::AppHandle, limit: Option<u32>) -> Result<Vec<(i64,String,String,String)>, String> {
+fn memory_list(
+    app: tauri::AppHandle,
+    limit: Option<u32>,
+) -> Result<Vec<(i64, String, String, String)>, String> {
     memory::list(&memory_path(&app)?, limit.unwrap_or(50))
 }
 #[tauri::command]
-fn memory_search(app: tauri::AppHandle, query: String, limit: Option<u32>) -> Result<Vec<(i64,String,String,String)>, String> {
+fn memory_search(
+    app: tauri::AppHandle,
+    query: String,
+    limit: Option<u32>,
+) -> Result<Vec<(i64, String, String, String)>, String> {
     memory::search(&memory_path(&app)?, &query, limit.unwrap_or(20))
 }
 #[tauri::command]
-fn memory_update(app: tauri::AppHandle, id: i64, content: String, kind: Option<String>) -> Result<(), String> {
-    memory::update(&memory_path(&app)?, id, &content, kind.as_deref().unwrap_or("note"))
+fn memory_update(
+    app: tauri::AppHandle,
+    id: i64,
+    content: String,
+    kind: Option<String>,
+) -> Result<(), String> {
+    memory::update(
+        &memory_path(&app)?,
+        id,
+        &content,
+        kind.as_deref().unwrap_or("note"),
+    )
 }
 #[tauri::command]
 fn memory_delete(app: tauri::AppHandle, id: i64) -> Result<(), String> {
@@ -185,7 +246,7 @@ fn reminder_add(app: tauri::AppHandle, title: String, due_at: String) -> Result<
     reminders::add(&memory_path(&app)?, &title, &due_at)
 }
 #[tauri::command]
-fn reminder_list(app: tauri::AppHandle) -> Result<Vec<(i64,String,String,bool)>, String> {
+fn reminder_list(app: tauri::AppHandle) -> Result<Vec<(i64, String, String, bool)>, String> {
     reminders::list(&memory_path(&app)?)
 }
 #[tauri::command]
@@ -193,50 +254,103 @@ fn reminder_complete(app: tauri::AppHandle, id: i64) -> Result<(), String> {
     reminders::complete(&memory_path(&app)?, id)
 }
 #[tauri::command]
-fn cloud_save_key(key: String) -> Result<(), String> { ai::save_key(&key) }
-#[tauri::command]
-fn cloud_has_key() -> Result<bool, String> { ai::has_key() }
-#[tauri::command]
-fn cloud_delete_key() -> Result<(), String> { ai::delete_key() }
-#[tauri::command]
-async fn cloud_chat(base_url: String, model: String, messages: Vec<ai::Message>) -> Result<String,String> {
-    ai::chat(ai::ChatRequest { base_url, model, messages }).await
+fn cloud_save_key(key: String) -> Result<(), String> {
+    ai::save_key(&key)
 }
 #[tauri::command]
-fn local_brain_reply(input: String, language: String) -> Result<String,String> {
+fn cloud_has_key() -> Result<bool, String> {
+    ai::has_key()
+}
+#[tauri::command]
+fn cloud_delete_key() -> Result<(), String> {
+    ai::delete_key()
+}
+#[tauri::command]
+async fn cloud_chat(
+    base_url: String,
+    model: String,
+    messages: Vec<ai::Message>,
+) -> Result<String, String> {
+    ai::chat(ai::ChatRequest {
+        base_url,
+        model,
+        messages,
+    })
+    .await
+}
+#[tauri::command]
+fn local_brain_reply(input: String, language: String) -> Result<String, String> {
     Ok(local_brain::reply(&input, &language))
 }
 #[tauri::command]
-fn local_brain_execute(app: tauri::AppHandle, input: String, language: String) -> Result<Option<String>,String> {
+fn local_brain_execute(
+    app: tauri::AppHandle,
+    input: String,
+    language: String,
+) -> Result<Option<String>, String> {
     local_brain::execute(&memory_path(&app)?, &input, &language)
 }
 #[tauri::command]
-async fn cloud_chat_stream(app: tauri::AppHandle, request_id: String, base_url: String, model: String, messages: Vec<ai::Message>) -> Result<String,String> {
-    ai::chat_stream(&app, &request_id, ai::ChatRequest { base_url, model, messages }).await
+async fn cloud_chat_stream(
+    app: tauri::AppHandle,
+    request_id: String,
+    base_url: String,
+    model: String,
+    messages: Vec<ai::Message>,
+) -> Result<String, String> {
+    ai::chat_stream(
+        &app,
+        &request_id,
+        ai::ChatRequest {
+            base_url,
+            model,
+            messages,
+        },
+    )
+    .await
 }
 #[tauri::command]
-fn calendar_list(app: tauri::AppHandle) -> Result<Vec<(i64,String,String)>,String> { calendar::list(&memory_path(&app)?) }
+fn calendar_list(app: tauri::AppHandle) -> Result<Vec<(i64, String, String)>, String> {
+    calendar::list(&memory_path(&app)?)
+}
 #[tauri::command]
-fn calendar_delete(app: tauri::AppHandle, id: i64) -> Result<(),String> { calendar::delete(&memory_path(&app)?, id) }
+fn calendar_delete(app: tauri::AppHandle, id: i64) -> Result<(), String> {
+    calendar::delete(&memory_path(&app)?, id)
+}
 #[tauri::command]
-fn permission_list(app: tauri::AppHandle) -> Result<Vec<permissions::Permission>,String> { permissions::list(&memory_path(&app)?) }
+fn permission_list(app: tauri::AppHandle) -> Result<Vec<permissions::Permission>, String> {
+    permissions::list(&memory_path(&app)?)
+}
 #[tauri::command]
-fn permission_set(app: tauri::AppHandle, capability: String, mode: String) -> Result<(),String> {
+fn permission_set(app: tauri::AppHandle, capability: String, mode: String) -> Result<(), String> {
     let p = memory_path(&app)?;
     permissions::set(&p, &capability, &mode)?;
     permissions::add_log(&p, "permission", &format!("{}={}", capability, mode))
 }
 #[tauri::command]
-fn activity_log(app: tauri::AppHandle, limit: Option<u32>) -> Result<Vec<(i64,String,String,String)>,String> {
+fn activity_log(
+    app: tauri::AppHandle,
+    limit: Option<u32>,
+) -> Result<Vec<(i64, String, String, String)>, String> {
     permissions::logs(&memory_path(&app)?, limit.unwrap_or(100))
 }
 #[tauri::command]
-fn excluded_apps(app: tauri::AppHandle) -> Result<Vec<String>,String> { permissions::excluded(&memory_path(&app)?) }
+fn excluded_apps(app: tauri::AppHandle) -> Result<Vec<String>, String> {
+    permissions::excluded(&memory_path(&app)?)
+}
 #[tauri::command]
-fn excluded_app_add(app: tauri::AppHandle, name: String) -> Result<(),String> { permissions::add_excluded(&memory_path(&app)?, &name) }
+fn excluded_app_add(app: tauri::AppHandle, name: String) -> Result<(), String> {
+    permissions::add_excluded(&memory_path(&app)?, &name)
+}
 #[tauri::command]
-fn excluded_app_remove(app: tauri::AppHandle, name: String) -> Result<(),String> { permissions::remove_excluded(&memory_path(&app)?, &name) }
+fn excluded_app_remove(app: tauri::AppHandle, name: String) -> Result<(), String> {
+    permissions::remove_excluded(&memory_path(&app)?, &name)
+}
 #[tauri::command]
-fn emergency_stop(app: tauri::AppHandle) -> Result<(),String> {
-    permissions::add_log(&memory_path(&app)?, "emergency_stop", "All pending computer-control actions cancelled")
+fn emergency_stop(app: tauri::AppHandle) -> Result<(), String> {
+    permissions::add_log(
+        &memory_path(&app)?,
+        "emergency_stop",
+        "All pending computer-control actions cancelled",
+    )
 }
