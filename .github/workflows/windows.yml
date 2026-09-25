@@ -47,21 +47,23 @@ jobs:
       - name: Verify Phase 2-4 completion gates
         shell: pwsh
         run: |
-          $checks = @{
-            "Phase 2 animation/procedural pipeline" = @("src/lib/scene.ts", "removeProcedural", "applyProcedural", "leftForeArm", "rightForeArm", "gestureTime")
-            "Phase 3 voice pipeline" = @("src/lib/voice.ts", "getUserMedia", "finish", "src/lib/model_manager.ts", "pipeline")
-            "Phase 4 local brain" = @("src-tauri/src/local_brain.rs", "detect_intent", "local_brain_execute", "src-tauri/src/agent.rs", "computer.open")
-            "Phase 4 persistence" = @("src-tauri/src/memory.rs", "src-tauri/src/reminders.rs", "src-tauri/src/calendar.rs", "src-tauri/src/permissions.rs")
-          }
+          $checks = @(
+            @{ file="src/lib/scene.ts"; patterns=@("removeProcedural","applyProcedural","leftForeArm","rightForeArm","gestureTime","setTalking","viseme","applyBlink") },
+            @{ file="src/lib/voice.ts"; patterns=@("getUserMedia","finish") },
+            @{ file="src/lib/model_manager.ts"; patterns=@("pipeline","progress_callback","allowRemoteModels") },
+            @{ file="src-tauri/src/local_brain.rs"; patterns=@("detect_intent","normalize","Duration::minutes") },
+            @{ file="src-tauri/src/agent.rs"; patterns=@("computer.open") },
+            @{ file="src-tauri/src/memory.rs"; patterns=@("pub fn add","pub fn search") },
+            @{ file="src-tauri/src/reminders.rs"; patterns=@("pub fn add","RFC3339") },
+            @{ file="src-tauri/src/calendar.rs"; patterns=@("pub fn add","pub fn list") },
+            @{ file="src-tauri/src/permissions.rs"; patterns=@("pub fn set","pub fn allowed") }
+          )
           if (-not (Select-String -Path "src-tauri/src/main.rs" -Pattern "local_brain_execute|agent_route|memory_add|reminder_add|calendar_list" -Quiet)) { throw "Phase 4 native command boundary is incomplete." }
           if (-not (Select-String -Path "src/App.svelte" -Pattern "agent_route|local_brain_execute|cloudChatStream|offlineFallback" -Quiet)) { throw "Phase 4 frontend routing is incomplete." }
-          if (-not (Select-String -Path "src/lib/scene.ts" -Pattern "setTalking|viseme|applyBlink" -Quiet)) { throw "Phase 3 character speech integration is incomplete." }
-          foreach ($entry in $checks.GetEnumerator()) {
-            $items = $entry.Value
-            $file = $items[0]
-            if (-not (Test-Path $file)) { throw "Missing gate file: $file" }
-            foreach ($pattern in $items[1..($items.Count-1)]) {
-              if (-not (Select-String -Path $file -Pattern $pattern -Quiet)) { throw "Missing $($entry.Key) marker: $pattern" }
+          foreach ($check in $checks) {
+            if (-not (Test-Path $check.file)) { throw "Missing gate file: $($check.file)" }
+            foreach ($pattern in $check.patterns) {
+              if (-not (Select-String -Path $check.file -Pattern $pattern -Quiet)) { throw "Missing marker in $($check.file): $pattern" }
             }
           }
           Write-Host "Phase 2-4 source acceptance gates passed."
