@@ -94,7 +94,7 @@ Local execution is implemented through explicit native commands rather than gene
 
 ## Phase 5 — Cloud Brain
 
-The cloud layer provides an OpenAI-compatible provider abstraction, protected API-key storage, streaming, persona context, provider/model configuration and offline fallback.
+The cloud layer provides an OpenAI-compatible provider abstraction, protected API-key storage, streaming, cancellable generation, connectivity testing, persona context, provider/model configuration, conversation history, relevant-memory context and offline fallback. The local integration also includes background reminder due events, relevance-ranked memory search, and a Windows WebView2 media-permission bridge for microphone capture.
 
 ## Safety boundaries
 
