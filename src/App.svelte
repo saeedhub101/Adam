@@ -43,9 +43,9 @@
     recognition.continuous = false;
     recognition.interimResults = true;
     recognition.lang = lang === "ar" ? "ar-SA" : "en-US";
-    recognition.onstart = () => listening = true;
+    recognition.onstart = () => { listening = true; scene?.setTalking(false); };
     recognition.onend = () => listening = false;
-    recognition.onerror = () => listening = false;
+    recognition.onerror = () => { listening = false; scene?.setTalking(false); };
     recognition.onresult = (event: any) => {
       let text = "";
       for (let i = event.resultIndex; i < event.results.length; i++) text += event.results[i][0].transcript;
@@ -63,9 +63,12 @@
   function speak(text: string) {
     if (!text || !(window as any).speechSynthesis) return;
     (window as any).speechSynthesis.cancel();
+    scene?.setTalking(true);
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = lang === "ar" ? "ar-SA" : "en-US";
     utterance.rate = 1;
+    utterance.onend = () => scene?.setTalking(false);
+    utterance.onerror = () => scene?.setTalking(false);
     (window as any).speechSynthesis.speak(utterance);
   }
 
