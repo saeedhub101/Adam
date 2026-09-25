@@ -3,7 +3,7 @@
   import { t, type Lang } from "./lib/i18n";
   import { AdamScene } from "./lib/scene";
   import { setCharacterSize, setIgnoreCursorEvents, savePosition, loadPosition } from "./lib/desktop";
-  import { addMemory, listMemories, searchMemories, type Memory } from "./lib/memory";
+  import { addMemory, listMemories, searchMemories, updateMemory, deleteMemory, type Memory } from "./lib/memory";
   import { addReminder, listReminders, completeReminder, type Reminder } from "./lib/reminders";
   import { cloudChat, hasApiKey, saveApiKey, deleteApiKey, type ChatMessage } from "./lib/cloud";
   import { listPermissions, setPermission, listActivity, emergencyStop, type Permission, type Activity } from "./lib/permissions";
@@ -226,7 +226,7 @@
         </button>
         {#if memoryOpen}
         {#each memories.slice(0, 5) as memory}
-          <div class="memory-item">{memory.content}</div>
+          <div class="memory-item"><span>{memory.content}</span><button on:click|stopPropagation={async () => { const value = window.prompt("Edit memory", memory.content); if (value !== null && value.trim()) { await updateMemory(memory.id, value.trim(), memory.kind); memories = memoryQuery.trim() ? await searchMemories(memoryQuery) : await listMemories(); } }}>Edit</button><button on:click|stopPropagation={async () => { await deleteMemory(memory.id); memories = memoryQuery.trim() ? await searchMemories(memoryQuery) : await listMemories(); }}>Delete</button></div>
         {/each}
         {/if}
         {#if transcript}
