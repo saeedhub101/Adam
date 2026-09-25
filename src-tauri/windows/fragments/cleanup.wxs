@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"
+     xmlns:util="http://schemas.microsoft.com/wix/UtilExtension">
+  <Fragment>
+    <Property Id="ADAM_ROAMING_DATA_DIR" Value="%APPDATA%\com.saeedhub.adam" />
+    <Property Id="ADAM_LOCAL_DATA_DIR" Value="%LOCALAPPDATA%\com.saeedhub.adam" />
+    <Property Id="ADAM_LEGACY_LOCAL_DATA_DIR" Value="%LOCALAPPDATA%\Adam" />
+
+    <DirectoryRef Id="TARGETDIR">
+      <Component Id="AdamCleanupRoamingData" Guid="5d7c8d2a-6f2d-4d9f-9f15-1d0d6e3c0b11">
+        <RegistryValue Root="HKCU"
+                       Key="Software\SaeedHub\Adam"
+                       Name="RoamingDataPath"
+                       Type="string"
+                       Value="[ADAM_ROAMING_DATA_DIR]"
+                       KeyPath="yes" />
+        <util:RemoveFolderEx Id="RemoveAdamRoamingData"
+                             On="uninstall"
+                             Property="ADAM_ROAMING_DATA_DIR" />
+      </Component>
+
+      <Component Id="AdamCleanupLocalData" Guid="8f4a1b3c-2e77-4b4c-9e3d-6b1f5a0c2d22">
+        <RegistryValue Root="HKCU"
+                       Key="Software\SaeedHub\Adam"
+                       Name="LocalDataPath"
+                       Type="string"
+                       Value="[ADAM_LOCAL_DATA_DIR]"
+                       KeyPath="yes" />
+        <util:RemoveFolderEx Id="RemoveAdamLocalData"
+                             On="uninstall"
+                             Property="ADAM_LOCAL_DATA_DIR" />
+      </Component>
+
+      <Component Id="AdamCleanupLegacyLocalData" Guid="a31f2c4d-5e66-47a8-b9c0-2d3e4f5a6b33">
+        <RegistryValue Root="HKCU"
+                       Key="Software\SaeedHub\Adam"
+                       Name="LegacyLocalDataPath"
+                       Type="string"
+                       Value="[ADAM_LEGACY_LOCAL_DATA_DIR]"
+                       KeyPath="yes" />
+        <util:RemoveFolderEx Id="RemoveAdamLegacyLocalData"
+                             On="uninstall"
+                             Property="ADAM_LEGACY_LOCAL_DATA_DIR" />
+      </Component>
+    </DirectoryRef>
+  </Fragment>
+</Wix>
