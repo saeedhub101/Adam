@@ -41,21 +41,22 @@ pub fn search(
     limit: u32,
 ) -> Result<Vec<(i64, String, String, String)>, String> {
     let conn = Connection::open(path).map_err(|e| e.to_string())?;
-    let escaped = q
-        .replace('\\', "\\\\")
-        .replace('%', "\\%")
-        .replace('_', "\\_");
-    let pattern = format!("%{}%", escaped);
-    let mut s=conn.prepare("SELECT id,content,kind,created_at FROM memories WHERE content LIKE ?1 ESCAPE '\\\\' COLLATE NOCASE ORDER BY id DESC LIMIT ?2").map_err(|e|e.to_string())?;
-    let rows = s
-        .query_map(params![pattern, limit.min(1000)], |r| {
-            Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))
-        })
-        .map_err(|e| e.to_string())?;
-    rows.map(|r| r.map_err(|e| e.to_string())).collect()
-}
-
-pub fn update(path: &Path, id: i64, content: &str, kind: &str) -> Result<(), String> {
+    let mut stmt = conn.prepare("SELECT id,content,kind,created_at FROM memories ORDER BY id DESC LIMIT 1000").map_err(|e| e.to_string())?;
+    let rows = stmt.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?, r.get::<_, String>(3)?))).map_err(|e| e.to_string())?;
+    let query_tokens: Vec<String> = q.to_lowercase().split_whitespace().filter(|t| t.len() > 1).map(|t| t.trim_matches(|c: char| !c.is_alphanumeric()).to_string()).filter(|t| !t.is_empty()).collect();
+    let mut scored = Vec::new();
+    for row in rows {
+        let item = row.map_err(|e| e.to_string())?;
+        let hay = item.1.to_lowercase();
+        let mut score = 0usize;
+        for token in &query_tokens {
+            if hay.contains(token) { score += 1; }
+        }
+        if score > 0 || query_tokens.is_empty() { scored.push((score, item)); }
+    }
+    scored.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| b.1.0.cmp(&a.1.0)));
+    Ok(scored.into_iter().take(limit.min(1000) as usize).map(|(_, item)| item).collect())
+}pub fn update(path: &Path, id: i64, content: &str, kind: &str) -> Result<(), String> {
     let conn = Connection::open(path).map_err(|e| e.to_string())?;
     conn.execute(
         "UPDATE memories SET content=?1,kind=?2,updated_at=CURRENT_TIMESTAMP WHERE id=?3",
