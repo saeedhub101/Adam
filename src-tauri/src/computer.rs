@@ -25,7 +25,8 @@ pub fn open_target(target: &str) -> Result<String, String> {
         "explorer" | "file explorer" | "الملفات" => ("explorer.exe", &[], "File Explorer"),
         _ if key.starts_with("https://") || key.starts_with("http://") => {
             let child = Command::new("rundll32.exe").args(["url.dll,FileProtocolHandler", target.trim()]).spawn().map_err(|e| e.to_string())?;
-            track(child)?; return Ok(target.trim().to_string());
+            track(child)?;
+            return Ok(target.trim().to_string());
         }
         _ => return Err("For safety, Adam currently opens only approved Windows apps or http/https URLs.".into()),
     };
@@ -36,17 +37,16 @@ pub fn open_target(target: &str) -> Result<String, String> {
 
 #[cfg(target_os = "windows")]
 pub fn mouse_click(x: i32, y: i32, double: bool) -> Result<(), String> {
-    use windows::Win32::UI::Input::KeyboardAndMouse::*;
+    use windows::Win32::UI::Input::KeyboardAndMouse::{SendInput, INPUT, INPUT_0, INPUT_MOUSE, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEINPUT};
+    use windows::Win32::UI::WindowsAndMessaging::SetCursorPos;
     unsafe {
         SetCursorPos(x, y).map_err(|e| e.to_string())?;
         let flags = MOUSEEVENTF_LEFTDOWN | MOUSEEVENTF_LEFTUP;
         let input = INPUT { r#type: INPUT_MOUSE, Anonymous: INPUT_0 { mi: MOUSEINPUT { dx: 0, dy: 0, mouseData: 0, dwFlags: flags, time: 0, dwExtraInfo: 0 } } };
-        let sent = SendInput(&[input], std::mem::size_of::<INPUT>() as i32);
-        if sent != 1 { return Err("Mouse click failed".into()); }
+        if SendInput(&[input], std::mem::size_of::<INPUT>() as i32) != 1 { return Err("Mouse click failed".into()); }
         if double {
             std::thread::sleep(std::time::Duration::from_millis(80));
-            let sent = SendInput(&[input], std::mem::size_of::<INPUT>() as i32);
-            if sent != 1 { return Err("Mouse double-click failed".into()); }
+            if SendInput(&[input], std::mem::size_of::<INPUT>() as i32) != 1 { return Err("Mouse double-click failed".into()); }
         }
     }
     Ok(())
@@ -54,7 +54,7 @@ pub fn mouse_click(x: i32, y: i32, double: bool) -> Result<(), String> {
 
 #[cfg(target_os = "windows")]
 pub fn type_text(text: &str) -> Result<(), String> {
-    use windows::Win32::UI::Input::KeyboardAndMouse::*;
+    use windows::Win32::UI::Input::KeyboardAndMouse::{SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, KEYEVENTF_UNICODE, VIRTUAL_KEY};
     unsafe {
         for unit in text.encode_utf16() {
             let down = INPUT { r#type: INPUT_KEYBOARD, Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VIRTUAL_KEY(0), wScan: unit, dwFlags: KEYEVENTF_UNICODE, time: 0, dwExtraInfo: 0 } } };
@@ -67,9 +67,9 @@ pub fn type_text(text: &str) -> Result<(), String> {
 
 #[cfg(target_os = "windows")]
 pub fn key_press(vk: u16) -> Result<(), String> {
-    use windows::Win32::UI::Input::KeyboardAndMouse::*;
+    use windows::Win32::UI::Input::KeyboardAndMouse::{SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, VIRTUAL_KEY};
     unsafe {
-        let down = INPUT { r#type: INPUT_KEYBOARD, Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VIRTUAL_KEY(vk), wScan: 0, dwFlags: KEYEVENTF(0), time: 0, dwExtraInfo: 0 } } };
+        let down = INPUT { r#type: INPUT_KEYBOARD, Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VIRTUAL_KEY(vk), wScan: 0, dwFlags: Default::default(), time: 0, dwExtraInfo: 0 } } };
         let up = INPUT { r#type: INPUT_KEYBOARD, Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VIRTUAL_KEY(vk), wScan: 0, dwFlags: KEYEVENTF_KEYUP, time: 0, dwExtraInfo: 0 } } };
         if SendInput(&[down, up], std::mem::size_of::<INPUT>() as i32) != 2 { return Err("Key press failed".into()); }
     }
@@ -78,8 +78,9 @@ pub fn key_press(vk: u16) -> Result<(), String> {
 
 #[cfg(target_os = "windows")]
 pub fn windows() -> Result<Vec<(isize, String)>, String> {
-    use windows::Win32::Foundation::{BOOL, HWND, LPARAM};
+    use windows::Win32::Foundation::{HWND, LPARAM};
     use windows::Win32::UI::WindowsAndMessaging::{EnumWindows, GetWindowTextLengthW, GetWindowTextW, IsWindowVisible};
+    use windows_core::BOOL;
     unsafe extern "system" fn callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
         let out = &mut *(lparam.0 as *mut Vec<(isize, String)>);
         if !IsWindowVisible(hwnd).as_bool() { return BOOL(1); }
@@ -87,9 +88,7 @@ pub fn windows() -> Result<Vec<(isize, String)>, String> {
         if len <= 0 { return BOOL(1); }
         let mut buf = vec![0u16; len as usize + 1];
         let written = GetWindowTextW(hwnd, &mut buf);
-        if written > 0 {
-            out.push((hwnd.0 as isize, String::from_utf16_lossy(&buf[..written as usize])));
-        }
+        if written > 0 { out.push((hwnd.0 as isize, String::from_utf16_lossy(&buf[..written as usize]))); }
         BOOL(1)
     }
     let mut out = Vec::new();
