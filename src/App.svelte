@@ -133,7 +133,7 @@
     await setupLocalVoice();
     if (!localVoice) return;
     if (localVoice.listening) { localVoice.stop(); return; }
-    await localVoice.start(lang === "ar" ? "ar" : "en", async (text) => { transcript = text; await sendChat(text); });
+    listening = true;\n    try { await localVoice.start(lang === "ar" ? "ar" : "en", async (text) => { transcript = text; listening = false; await sendChat(text); }); } catch (e) { listening = false; micError = String(e); }
   }
 
   function setupVoice() {
