@@ -5,5 +5,5 @@
   "identifier":"com.saeedhub.adam",
   "build":{"beforeDevCommand":"npm run dev","devUrl":"http://localhost:1420","beforeBuildCommand":"npm run build","frontendDist":"../dist"},
   "app":{"windows":[{"label":"main","title":"Adam","width":360,"height":520,"transparent":true,"decorations":false,"alwaysOnTop":true,"resizable":false,"skipTaskbar":true,"shadow":false,"visible":true}]},
-  "bundle":{"active":true,"targets":["nsis"],"windows":{"nsis":{"installMode":"currentUser","displayLanguageSelector":true}}}
+  "bundle":{"active":true,"targets":["nsis","msi"],"windows":{"nsis":{"installMode":"currentUser","displayLanguageSelector":true}}}
 }
