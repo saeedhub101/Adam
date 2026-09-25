@@ -15,8 +15,8 @@ Adam is a Windows desktop AI companion.
 
 ## Phase status
 
-- **Phase 0 — Foundation:** implementation complete; CI now validates formatting, foundation files, packaging configuration, NSIS + MSI artifacts, and generates/commits `package-lock.json` for reproducible frontend installation.
-- **Phase 1 — Character on desktop:** implementation complete at source level: transparent always-on-top surface, safe fallback avatar, GLB/GLTF picker, persistent size/position, multi-monitor clamping, stable click-through toggle, and generic rig/capability detection.
+- **Phase 0 — Foundation:** source and packaging gates implemented; CI validates foundation files, formatting, production build, NSIS/MSI packaging, installer launch/uninstall, persistence and data cleanup. Code signing remains a release-hardening step.
+- **Phase 1 — Character on desktop:** transparent always-on-top surface, robust GLB/GLTF multi-file loading, fallback avatar, persistent size/position, multi-monitor clamping, click-through control, render-quality control, WebGL recovery handling, character history and capability inspection.
 - **Phase 2 — Animation:** implemented with animation-clip detection, cross-fades, bone-aware procedural idle motion and fallback idle behavior.
 - **Phase 3 — Voice:** bilingual English/Arabic speech recognition and speech synthesis are integrated through WebView voice APIs, with microphone state and transcript display.
 - **Phase 4 — Local Brain & Memory:** local routing, SQLite memory/reminders/calendar and offline execution paths are implemented.
@@ -62,7 +62,7 @@ Installer output:
 
 ## Phase 1
 
-GLB/GLTF can be selected from the Change Character control. If no model is present, a built-in fallback character is shown. Position and size are stored through the Rust backend. The final `adam.glb` asset is intentionally not required for the current foundation acceptance pass.
+GLB/GLTF can be selected from the Change Character control. If no model is present, a built-in fallback character is shown. Position and size are stored through the Rust backend. A repository-provided production character asset remains optional: the built-in fallback is the guaranteed offline default until the final Adam model is supplied.
 
 ## Phase 2
 
