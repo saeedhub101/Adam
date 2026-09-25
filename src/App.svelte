@@ -43,7 +43,7 @@
     recognition.continuous = false;
     recognition.interimResults = true;
     recognition.lang = lang === "ar" ? "ar-SA" : "en-US";
-    recognition.onstart = () => { listening = true; scene?.setTalking(false); };
+    recognition.onstart = () => { (window as any).speechSynthesis?.cancel(); scene?.setTalking(false); listening = true; };
     recognition.onend = () => listening = false;
     recognition.onerror = () => { listening = false; scene?.setTalking(false); };
     recognition.onresult = (event: any) => {
@@ -57,7 +57,7 @@
   function toggleVoice() {
     if (!recognition) setupVoice();
     if (!recognition) return;
-    if (listening) recognition.stop(); else { recognition.lang = lang === "ar" ? "ar-SA" : "en-US"; recognition.start(); }
+    if (listening) recognition.stop(); else { (window as any).speechSynthesis?.cancel(); scene?.setTalking(false); recognition.lang = lang === "ar" ? "ar-SA" : "en-US"; recognition.start(); }
   }
 
   function speak(text: string) {
