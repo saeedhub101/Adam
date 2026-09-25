@@ -1,4 +1,5 @@
 mod memory;
+mod reminders;
 
 use std::{fs, path::PathBuf};
 use tauri::{Manager, PhysicalPosition, PhysicalSize, WebviewWindow};
@@ -28,7 +29,10 @@ fn main() {
       load_position,
       memory_add,
       memory_list,
-      memory_search
+      memory_search,
+      reminder_add,
+      reminder_list,
+      reminder_complete
     ])
     .run(tauri::generate_context!())
     .expect("error while running Adam");
@@ -77,4 +81,19 @@ fn memory_list(app: tauri::AppHandle, limit: Option<u32>) -> Result<Vec<(i64,Str
 #[tauri::command]
 fn memory_search(app: tauri::AppHandle, query: String, limit: Option<u32>) -> Result<Vec<(i64,String,String,String)>, String> {
   memory::search(&memory_path(&app)?, &query, limit.unwrap_or(20))
+}
+
+#[tauri::command]
+fn reminder_add(app: tauri::AppHandle, title: String, due_at: String) -> Result<i64, String> {
+  reminders::add(&memory_path(&app)?, &title, &due_at)
+}
+
+#[tauri::command]
+fn reminder_list(app: tauri::AppHandle) -> Result<Vec<(i64,String,String,bool)>, String> {
+  reminders::list(&memory_path(&app)?)
+}
+
+#[tauri::command]
+fn reminder_complete(app: tauri::AppHandle, id: i64) -> Result<(), String> {
+  reminders::complete(&memory_path(&app)?, id)
 }
