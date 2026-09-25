@@ -96,9 +96,8 @@ fn grant_webview_media_permissions(window: &WebviewWindow) -> Result<(), String>
             };
             use webview2_com::PermissionRequestedEventHandler;
 
-            let Ok(core) = (unsafe { webview.controller().CoreWebView2() }) else {
-                return;
-            };
+            let core = unsafe { webview.controller().CoreWebView2() }
+                .map_err(|e| format!("WebView2 CoreWebView2 unavailable: {e:?}"))?;
             let handler = PermissionRequestedEventHandler::create(Box::new(
                 |_sender, args| {
                     let Some(args) = args else { return Ok(()); };
@@ -115,7 +114,8 @@ fn grant_webview_media_permissions(window: &WebviewWindow) -> Result<(), String>
                 },
             ));
             let mut token = 0i64;
-            let _ = unsafe { core.add_PermissionRequested(&handler, &mut token) };
+            unsafe { core.add_PermissionRequested(&handler, &mut token) }
+                .map_err(|e| format!("WebView2 permission handler registration failed: {e:?}"))?;
         })
         .map_err(|e| e.to_string())
 }
