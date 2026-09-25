@@ -19,25 +19,25 @@
   let reminderOpen = false;
   let reminderTitle = "";
   let reminderDue = "";
-  let chatOpen = false; let chatInput = ""; let chatReply = ""; let cloudKey = ""; let cloudReady = false; let chatBusy = false;
-  let provider = "openai"; let model = "gpt-4o-mini";
-  let persona = "You are Adam, a helpful desktop AI companion. Be concise, friendly, and practical.";
-  let offlineFallback = true; let customBaseUrl = "";
+  let chatOpen = $state(false); let chatInput = $state(""); let chatReply = $state(""); let cloudKey = $state(""); let cloudReady = $state(false); let chatBusy = $state(false);
+  let provider = $state("openai"); let model = $state("gpt-4o-mini");
+  let persona = $state("You are Adam, a helpful desktop AI companion. Be concise, friendly, and practical.");
+  let offlineFallback = $state(true); let customBaseUrl = $state("");
   const providers = { openai: { name: "OpenAI", baseUrl: "https://api.openai.com/v1", model: "gpt-4o-mini" }, openrouter: { name: "OpenRouter", baseUrl: "https://openrouter.ai/api/v1", model: "openai/gpt-4o-mini" }, custom: { name: "Custom OpenAI-compatible", baseUrl: "", model: "" } } as const;
 
   let canvas: HTMLCanvasElement;
   let scene: AdamScene;
-  let lang: Lang = "en";
-  let size = 100;
-  let showMenu = false;
+  let lang: Lang = $state("en");
+  let size = $state(100);
+  let showMenu = $state(false);
   let dragging = false;
   let lastX = 0;
   let lastY = 0;
-  let listening = false;
-  let transcript = "";
+  let listening = $state(false);
+  let transcript = $state("");
   let recognition: any;
   let safetyOpen = false; let permissions: Permission[] = []; let activity: Activity[] = [];
-  let localVoice: LocalWhisperVoice | undefined; let whisperReady = false; let voiceBusy = false;
+  let localVoice: LocalWhisperVoice | undefined; let whisperReady = $state(false); let voiceBusy = $state(false);
 
   async function setupLocalVoice() {
     if (!localVoice) localVoice = new LocalWhisperVoice((status) => { whisperReady = status === "ready"; voiceBusy = status === "loading"; });
