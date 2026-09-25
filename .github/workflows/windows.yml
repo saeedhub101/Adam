@@ -29,7 +29,8 @@ jobs:
             "src-tauri/src/memory.rs",
             "src-tauri/src/permissions.rs",
             "src-tauri/src/calendar.rs",
-            "docs/ARCHITECTURE.md"
+            "docs/ARCHITECTURE.md",
+            "src-tauri/src/screen.rs"
           )
           foreach ($file in $required) {
             if (-not (Test-Path $file)) { throw "Missing required Phase 0 file: $file" }
@@ -100,6 +101,24 @@ jobs:
               if ($content -notmatch [regex]::Escape($pattern)) { throw "Missing required Phase 6-9 marker '$pattern' in $($check.file)" }
             }
           }
+      - name: Verify Phase 7-8 screen and computer-control gates
+        shell: pwsh
+        run: |
+          $markers = @(
+            @{ file="src-tauri/src/screen.rs"; patterns=@("capture_desktop","GetSystemMetrics","BitBlt","png_base64") },
+            @{ file="src-tauri/src/computer.rs"; patterns=@("mouse_click","type_text","key_press","windows","notepad.exe") },
+            @{ file="src-tauri/src/main.rs"; patterns=@("screen_capture","vision_analyze","computer_windows","computer_click","computer_type","computer_key") },
+            @{ file="src/lib/desktop.ts"; patterns=@("captureDesktop","analyzeScreen","computerClick","computerType","computerKey") },
+            @{ file="src-tauri/src/permissions.rs"; patterns=@("computer.control","screen.capture") }
+          )
+          foreach ($check in $markers) {
+            if (-not (Test-Path $check.file)) { throw "Missing Phase 7-8 file: $($check.file)" }
+            foreach ($pattern in $check.patterns) {
+              if (-not (Select-String -Path $check.file -Pattern $pattern -Quiet)) { throw "Missing Phase 7-8 marker in $($check.file): $pattern" }
+            }
+          }
+          Write-Host "Phase 7-8 screen understanding and bounded computer-control source gates passed."
+
       - name: Production safety unit tests
         run: cargo test --manifest-path src-tauri/Cargo.toml production::tests
       - name: Tauri Windows production build
