@@ -9,6 +9,7 @@ export async function cloudChat(config:CloudConfig,messages:ChatMessage[]):Promi
 
 
 export async function cloudChatStream(config:CloudConfig,messages:ChatMessage[],onDelta:(delta:string)=>void):Promise<string>{
+ if(!config.baseUrl.trim() || !config.model.trim()) throw new Error("Provider URL and model are required.");
  const id=crypto.randomUUID();
  const unlisten=await listen<string>(`adam://cloud-chunk/${id}`,(event)=>onDelta(event.payload));
  try { return await invoke<string>("cloud_chat_stream",{requestId:id,baseUrl:config.baseUrl,model:config.model,messages}); }
