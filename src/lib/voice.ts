@@ -1,4 +1,4 @@
-type Status = "idle" | "loading" | "ready";
+type Status = "idle" | "loading" | "ready" | "error";
 type ResultHandler = (text: string) => Promise<void> | void;
 
 export class LocalWhisperVoice {
@@ -10,45 +10,52 @@ export class LocalWhisperVoice {
   private chunks: Float32Array[] = [];
   private speaking = false;
   private startedAt = 0;
+  private lastVoiceAt = 0;
   private handler?: ResultHandler;
   listening = false;
+  status: Status = "idle";
+  error = "";
   private statusCb: (status: Status) => void;
 
-  constructor(statusCb: (status: Status) => void) {
-    this.statusCb = statusCb;
-  }
+  constructor(statusCb: (status: Status) => void) { this.statusCb = statusCb; }
 
   async load(): Promise<void> {
     if (this.recognizer) return;
-    this.statusCb("loading");
-    const { pipeline, env } = await import("@huggingface/transformers");
-    env.allowLocalModels = false;
-    env.useBrowserCache = true;
-    this.recognizer = await pipeline("automatic-speech-recognition", "Xenova/whisper-tiny");
-    this.statusCb("ready");
+    this.status = "loading"; this.error = ""; this.statusCb("loading");
+    try {
+      const { pipeline, env } = await import("@huggingface/transformers");
+      // The first load may download the model; subsequent runs use the browser cache.
+      // Keeping local models enabled makes the cached model usable while offline.
+      env.allowLocalModels = true;
+      env.allowRemoteModels = true;
+      env.useBrowserCache = true;
+      this.recognizer = await pipeline("automatic-speech-recognition", "Xenova/whisper-tiny");
+      this.status = "ready"; this.statusCb("ready");
+    } catch (e) {
+      this.status = "error"; this.error = String(e); this.statusCb("error");
+      throw e;
+    }
   }
 
   async start(language: "ar" | "en", handler: ResultHandler): Promise<void> {
     await this.load();
     this.handler = handler;
-    this.stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
+    (window as any).speechSynthesis?.cancel();
+    this.stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
     this.audio = new AudioContext({ sampleRate: 16000 });
     this.source = this.audio.createMediaStreamSource(this.stream);
     this.processor = this.audio.createScriptProcessor(4096, 1, 1);
-    this.chunks = [];
-    this.speaking = false;
-    this.startedAt = performance.now();
-    this.listening = true;
+    this.chunks = []; this.speaking = false;
+    this.startedAt = performance.now(); this.lastVoiceAt = this.startedAt; this.listening = true;
     this.processor.onaudioprocess = (event) => {
+      if (!this.listening) return;
       const input = event.inputBuffer.getChannelData(0);
-      const copy = new Float32Array(input.length);
-      copy.set(input);
-      this.chunks.push(copy);
-      let energy = 0;
-      for (let i = 0; i < input.length; i++) energy += input[i] * input[i];
+      const copy = new Float32Array(input.length); copy.set(input); this.chunks.push(copy);
+      let energy = 0; for (let i = 0; i < input.length; i++) energy += input[i] * input[i];
       const rms = Math.sqrt(energy / input.length);
-      if (rms > 0.018) this.speaking = true;
-      if (this.speaking && rms < 0.012 && performance.now() - this.startedAt > 700) void this.finish(language);
+      const now = performance.now();
+      if (rms > 0.018) { this.speaking = true; this.lastVoiceAt = now; }
+      if (this.speaking && rms < 0.012 && now - this.lastVoiceAt > 550 && now - this.startedAt > 700) void this.finish(language);
     };
     this.source.connect(this.processor);
     this.processor.connect(this.audio.destination);
@@ -56,30 +63,26 @@ export class LocalWhisperVoice {
 
   stop(): void {
     this.listening = false;
-    this.processor?.disconnect();
-    this.source?.disconnect();
+    this.processor?.disconnect(); this.source?.disconnect();
     this.stream?.getTracks().forEach((t) => t.stop());
     void this.audio?.close();
-    this.processor = undefined;
-    this.source = undefined;
-    this.stream = undefined;
-    this.audio = undefined;
-    this.chunks = [];
-    this.speaking = false;
+    this.processor = undefined; this.source = undefined; this.stream = undefined; this.audio = undefined;
+    this.chunks = []; this.speaking = false;
   }
 
   private async finish(language: "ar" | "en") {
     if (!this.listening) return;
-    this.listening = false;
-    const chunks = this.chunks;
-    this.stop();
+    const chunks = this.chunks; this.stop();
     const length = chunks.reduce((n, c) => n + c.length, 0);
     const pcm = new Float32Array(length);
-    let offset = 0;
-    for (const chunk of chunks) { pcm.set(chunk, offset); offset += chunk.length; }
+    let offset = 0; for (const chunk of chunks) { pcm.set(chunk, offset); offset += chunk.length; }
     if (pcm.length < 16000 * 0.25) return;
-    const result = await this.recognizer(pcm, { language, task: "transcribe", return_timestamps: false });
-    const text = typeof result?.text === "string" ? result.text.trim() : "";
-    if (text && this.handler) await this.handler(text);
+    try {
+      const result = await this.recognizer(pcm, { language, task: "transcribe", return_timestamps: false });
+      const text = typeof result?.text === "string" ? result.text.trim() : "";
+      if (text && this.handler) await this.handler(text);
+    } catch (e) {
+      this.status = "error"; this.error = String(e); this.statusCb("error");
+    }
   }
 }
