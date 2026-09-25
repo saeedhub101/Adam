@@ -11,9 +11,9 @@ mod reminders;
 
 use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf};
-use tauri::{Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewWindow};
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::{Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewWindow};
 
 const BASE_WIDTH: u32 = 360;
 const BASE_HEIGHT: u32 = 520;
@@ -97,7 +97,9 @@ fn main() {
             let chat = MenuItemBuilder::with_id("chat", "Open AI Chat").build(app)?;
             let settings = MenuItemBuilder::with_id("settings", "Open Settings").build(app)?;
             let exit = MenuItemBuilder::with_id("exit", "Exit Adam").build(app)?;
-            let menu = MenuBuilder::new(app).items(&[&show, &chat, &settings, &exit]).build()?;
+            let menu = MenuBuilder::new(app)
+                .items(&[&show, &chat, &settings, &exit])
+                .build()?;
             TrayIconBuilder::new()
                 .icon(tauri::include_image!("./icons/icon.ico"))
                 .tooltip("Adam")
@@ -129,7 +131,12 @@ fn main() {
                     _ => {}
                 })
                 .on_tray_icon_event(|tray, event| {
-                    if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
                         if let Some(w) = tray.app_handle().get_webview_window("main") {
                             let _ = w.show();
                             let _ = w.set_focus();
@@ -234,11 +241,15 @@ fn set_character_dimensions(
     let width = width.clamp(180, 640);
     let height = height.clamp(220, 760);
     let size = size.clamp(60, 160);
-    let current = window.outer_position().unwrap_or(PhysicalPosition::new(0, 0));
+    let current = window
+        .outer_position()
+        .unwrap_or(PhysicalPosition::new(0, 0));
     let physical = PhysicalSize::new(width, height);
     let (x, y) = clamp_position(&window, current.x, current.y, physical);
     window.set_size(physical).map_err(|e| e.to_string())?;
-    window.set_position(PhysicalPosition::new(x, y)).map_err(|e| e.to_string())?;
+    window
+        .set_position(PhysicalPosition::new(x, y))
+        .map_err(|e| e.to_string())?;
     write_state(&app, &WindowState { x, y, size })
 }
 
