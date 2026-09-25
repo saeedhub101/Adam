@@ -36,10 +36,23 @@ jobs:
         run: npm run check
       - name: Frontend production build
         run: npm run build
+      - name: Rust format check
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
       - name: Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml
       - name: Tauri Windows production build
         run: npm run tauri build
+      - name: Verify Phase 0/1 packaging configuration
+        shell: pwsh
+        run: |
+          $config = Get-Content "src-tauri/tauri.conf.json" -Raw | ConvertFrom-Json
+          if ($config.bundle.publisher -ne "SaeedHub") { throw "Publisher configuration missing." }
+          if (-not $config.bundle.windows.nsis.installerHooks) { throw "NSIS uninstall hook missing." }
+          if ($config.bundle.windows.wix.upgradeCode -eq $null) { throw "Stable MSI upgradeCode missing." }
+          if ($config.app.windows[0].transparent -ne $true) { throw "Transparent desktop window requirement missing." }
+          if ($config.app.windows[0].alwaysOnTop -ne $true) { throw "Always-on-top requirement missing." }
+          if ($config.app.windows[0].skipTaskbar -ne $true) { throw "Skip-taskbar requirement missing." }
+          if (-not (Test-Path "src-tauri/windows/hooks.nsh")) { throw "NSIS hook file missing." }
       - name: Verify Windows installers
         shell: pwsh
         run: |
