@@ -243,7 +243,7 @@ jobs:
           retention-days: 14
 
       - name: Publish first GitHub Release
-        if: github.ref == 'refs/heads/main' && github.sha == '19ef015b8ec6411e118c30e253c12db5fa6ce38a'
+        if: github.ref == 'refs/heads/main' && github.event.head_commit.message == 'Fix release workflow trigger and publish first v0.1.0'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
