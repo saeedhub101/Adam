@@ -44,6 +44,12 @@
   let dragOver = $state(false);
   let animationNames = $state<string[]>([]);
   let animationState = $state<"idle"|"walk"|"run"|"gesture">("idle");
+  let loadingCharacter = $state(false);
+  let loadingProgress = $state(0);
+  let renderQuality = $state<"auto"|"low"|"medium"|"high">("auto");
+  let renderStatus = $state<any>({});
+  let savedCharacters = $state<string[]>([]);
+  let lastCharacterName = $state("Adam default");
 
   async function setupLocalVoice() {
     if (!localVoice) localVoice = new LocalWhisperVoice((status) => { whisperReady = status === "ready"; voiceBusy = status === "loading"; });
@@ -106,6 +112,9 @@
     const caps = await scene.load("/adam.glb");
     capabilities = caps;
     animationNames = scene.listAnimations();
+    renderQuality = (localStorage.getItem("adam-render-quality") as "auto"|"low"|"medium"|"high") || "auto";
+    scene.setQuality(renderQuality); renderStatus = scene.getRenderStatus();
+    try { savedCharacters = JSON.parse(localStorage.getItem("adam-character-history") || "[]"); } catch { savedCharacters = []; }
     window.addEventListener("resize", () => scene.resize());
     const position = await loadPosition();
     if (position) {
@@ -118,27 +127,30 @@
     await setIgnoreCursorEvents(false);
   });
 
-  async function loadCharacterFile(file: File) {
-    characterError = "";
-    if (!/\.(glb|gltf)$/i.test(file.name)) { characterError = lang === "ar" ? "الملف يجب أن يكون GLB أو GLTF." : "Character must be a GLB or GLTF file."; return; }
-    if (file.size > 200 * 1024 * 1024) { characterError = lang === "ar" ? "حجم الملف أكبر من 200MB." : "Character file is larger than 200MB."; return; }
-    const url = URL.createObjectURL(file);
-    try { const caps = await scene.load(url); capabilities = caps; animationNames = scene.listAnimations(); animationState = "idle"; }
-    catch (e) { characterError = String(e); }
-    finally { setTimeout(() => URL.revokeObjectURL(url), 60000); }
+  async function loadCharacterFiles(files: FileList | File[]) {
+    const selected = Array.from(files);
+    const main = selected.find((f) => /\.(glb|gltf)$/i.test(f.name));
+    if (!main) { characterError = lang === "ar" ? "اختر ملف GLB أو GLTF." : "Select a GLB or GLTF model."; return; }
+    characterError = ""; loadingCharacter = true; loadingProgress = 10;
+    try {
+      const caps = await scene.loadFiles(selected);
+      loadingProgress = 100; capabilities = caps; animationNames = scene.listAnimations(); animationState = "idle";
+      lastCharacterName = main.name.replace(/\.(glb|gltf)$/i, "");
+      savedCharacters = [lastCharacterName, ...savedCharacters.filter((n) => n !== lastCharacterName)].slice(0, 8);
+      localStorage.setItem("adam-character-history", JSON.stringify(savedCharacters));
+      renderStatus = scene.getRenderStatus();
+    } catch (e) { characterError = e instanceof Error ? e.message : String(e); loadingProgress = 0; }
+    finally { loadingCharacter = false; }
   }
+
+  async function loadCharacterFile(file: File) { await loadCharacterFiles([file]); }
 
   async function chooseCharacter() {
     const input = document.createElement("input");
-    input.type = "file"; input.accept = ".glb,.gltf";
-    input.onchange = async () => {
-      const file = input.files?.[0];
-      if (!file) return;
-      await loadCharacterFile(file);
-    };
+    input.type = "file"; input.accept = ".glb,.gltf,.bin,.png,.jpg,.jpeg,.webp"; input.multiple = true;
+    input.onchange = async () => { if (input.files?.length) await loadCharacterFiles(input.files); };
     input.click();
   }
-
   async function refreshReminders() { reminders = await listReminders(); }
 
   async function createReminder() {
@@ -243,14 +255,14 @@
 
 <svelte:window onkeydown={(e) => { if (e.key === "Escape") void closeMenu(); }} />
 
-<div class="stage" class:drag-over={dragOver} ondragover={(e) => { e.preventDefault(); dragOver = true; }} ondragleave={() => dragOver = false} ondrop={(e) => { e.preventDefault(); dragOver = false; const file = e.dataTransfer?.files?.[0]; if (file) void loadCharacterFile(file); }} ondblclick={() => void openMenu()} oncontextmenu={(e) => { e.preventDefault(); void openMenu(); }} onpointerdown={startDrag} onpointermove={drag} onpointerup={stopDrag}>
+<div class="stage" class:drag-over={dragOver} ondragover={(e) => { e.preventDefault(); dragOver = true; }} ondragleave={() => dragOver = false} ondrop={(e) => { e.preventDefault(); dragOver = false; const files = e.dataTransfer?.files; if (files?.length) void loadCharacterFiles(files); }} ondblclick={() => void openMenu()} oncontextmenu={(e) => { e.preventDefault(); void openMenu(); }} onpointerdown={startDrag} onpointermove={drag} onpointerup={stopDrag}>
   <canvas bind:this={canvas}></canvas>
   <div class="bubble">{t(lang, "idle")}</div>
   {#if showMenu}
     <div class="menu" onpointerdown={(e) => e.stopPropagation()} onpointermove={(e) => e.stopPropagation()}>
-      <button onclick={chooseCharacter}>{t(lang,"changeCharacter")}</button>
+      <button onclick={chooseCharacter}>{t(lang,"changeCharacter")}</button><small>Current: {lastCharacterName}</small>
       {#if characterError}<div class="error">{characterError}</div>{/if}
-      <div class="capabilities">{capabilities.loaded ? `Rig: ${capabilities.hasRig ? "yes" : "no"} · Animations: ${capabilities.animationCount ?? 0} · Face: ${capabilities.hasFacialMorphs ? "yes" : "no"} · Bones: ${Object.values(capabilities.boneMap ?? {}).filter(Boolean).length}/17` : "Loading character…"}</div>
+      <div class="loading" class:hidden={!loadingCharacter}>Loading character… {loadingProgress}%</div><div class="capabilities">{capabilities.loaded ? `Rig: ${capabilities.hasRig ? "yes" : "no"} · Animations: ${capabilities.animationCount ?? 0} · Face: ${capabilities.hasFacialMorphs ? "yes" : "no"} · Bones: ${Object.values(capabilities.boneMap ?? {}).filter(Boolean).length}/17` : "Loading character…"}</div><div class="quality-row"><label>Quality <select bind:value={renderQuality} onchange={() => { scene?.setQuality(renderQuality); localStorage.setItem("adam-render-quality", renderQuality); renderStatus = scene?.getRenderStatus(); }}><option value="auto">Auto</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label><small>{renderStatus.contextLost ? "WebGL context lost" : "DPR " + (renderStatus.pixelRatio ?? "—")}</small></div><div class="bone-capabilities">{#each Object.entries(capabilities.boneMap ?? {}) as [bone, present]}<span class:missing={!present}>{present ? "✓" : "✗"} {bone}</span>{/each}</div>{#if savedCharacters.length}<small class="history">Recent: {savedCharacters.join(" · ")}</small>{/if}
       <div class="animation-panel">
         <select bind:value={animationState} onchange={() => scene?.setState(animationState)}><option value="idle">Idle</option><option value="walk">Walk</option><option value="run">Run</option><option value="gesture">Gesture</option></select>
         {#if animationNames.length}<small>{animationNames.join(" · ")}</small>{/if}
@@ -306,4 +318,4 @@
     </div>
   {/if}
 </div>
-<style>.stage{position:relative;width:100vw;height:100vh;overflow:visible;user-select:none}.stage.drag-over{outline:2px dashed rgba(100,180,255,.9);outline-offset:-4px}.error{padding:7px;border-radius:8px;background:rgba(180,40,40,.3);color:#ffd7d7}.capabilities{font-size:11px;opacity:.8}.animation-panel{display:flex;flex-direction:column;gap:5px}.animation-panel small{font-size:10px;opacity:.7;word-break:break-word}.stage canvas{display:block;width:100%;height:100%}.bubble{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);padding:4px 10px;border-radius:12px;background:rgba(20,25,35,.72);color:white;font:12px sans-serif;pointer-events:none}.menu{position:absolute;right:8px;top:8px;width:260px;max-height:90vh;overflow:auto;padding:10px;border-radius:14px;background:rgba(20,24,32,.94);color:white;font:13px sans-serif;display:flex;flex-direction:column;gap:7px}.menu button,.menu input,.menu select,.menu textarea{font:inherit;border-radius:8px;border:1px solid rgba(255,255,255,.18);padding:7px;box-sizing:border-box}.menu button{background:#2f3746;color:white}.menu input,.menu select,.menu textarea{width:100%;background:#151a22;color:white}.chat-panel{padding:7px;border-radius:10px;background:rgba(255,255,255,.06);display:flex;flex-direction:column;gap:6px}.safety-panel{padding:7px;border-radius:10px;background:rgba(255,255,255,.06);display:flex;flex-direction:column;gap:6px} .safety-panel label{display:flex;justify-content:space-between;gap:6px} .activity-log{max-height:140px;overflow:auto;padding:6px;background:rgba(0,0,0,.18);border-radius:8px}.chat-reply{white-space:pre-wrap;max-height:180px;overflow:auto;padding:7px;border-radius:8px;background:rgba(255,255,255,.08)}</style>
+<style>.stage{position:relative;width:100vw;height:100vh;overflow:visible;user-select:none}.stage.drag-over{outline:2px dashed rgba(100,180,255,.9);outline-offset:-4px}.error{padding:7px;border-radius:8px;background:rgba(180,40,40,.3);color:#ffd7d7}.capabilities{font-size:11px;opacity:.8}.animation-panel{display:flex;flex-direction:column;gap:5px}.loading{padding:6px;border-radius:8px;background:rgba(80,140,255,.18)}.loading.hidden{display:none}.quality-row{display:flex;justify-content:space-between;align-items:center;gap:8px}.quality-row label{display:flex;align-items:center;gap:5px}.bone-capabilities{display:grid;grid-template-columns:1fr 1fr;gap:2px;font-size:10px}.bone-capabilities span{opacity:.9}.bone-capabilities .missing{opacity:.45}.history{opacity:.65;word-break:break-word}.animation-panel small{font-size:10px;opacity:.7;word-break:break-word}.stage canvas{display:block;width:100%;height:100%}.bubble{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);padding:4px 10px;border-radius:12px;background:rgba(20,25,35,.72);color:white;font:12px sans-serif;pointer-events:none}.menu{position:absolute;right:8px;top:8px;width:260px;max-height:90vh;overflow:auto;padding:10px;border-radius:14px;background:rgba(20,24,32,.94);color:white;font:13px sans-serif;display:flex;flex-direction:column;gap:7px}.menu button,.menu input,.menu select,.menu textarea{font:inherit;border-radius:8px;border:1px solid rgba(255,255,255,.18);padding:7px;box-sizing:border-box}.menu button{background:#2f3746;color:white}.menu input,.menu select,.menu textarea{width:100%;background:#151a22;color:white}.chat-panel{padding:7px;border-radius:10px;background:rgba(255,255,255,.06);display:flex;flex-direction:column;gap:6px}.safety-panel{padding:7px;border-radius:10px;background:rgba(255,255,255,.06);display:flex;flex-direction:column;gap:6px} .safety-panel label{display:flex;justify-content:space-between;gap:6px} .activity-log{max-height:140px;overflow:auto;padding:6px;background:rgba(0,0,0,.18);border-radius:8px}.chat-reply{white-space:pre-wrap;max-height:180px;overflow:auto;padding:7px;border-radius:8px;background:rgba(255,255,255,.08)}</style>
