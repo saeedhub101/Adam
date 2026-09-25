@@ -212,6 +212,8 @@ fn main() {
             cloud_delete_key,
             cloud_chat,
             cloud_chat_stream,
+            cloud_test_connection,
+            cloud_cancel,
             local_brain_reply,
             local_brain_execute,
             permission_list,
@@ -391,6 +393,16 @@ async fn cloud_chat(
     })
     .await
 }
+#[tauri::command]
+async fn cloud_test_connection(base_url: String) -> Result<String, String> {
+    ai::test_connection(&base_url).await
+}
+
+#[tauri::command]
+fn cloud_cancel(request_id: String) {
+    ai::cancel_stream(&request_id);
+}
+
 #[tauri::command]
 fn local_brain_reply(input: String, language: String) -> Result<String, String> {
     Ok(local_brain::reply(&input, &language))
