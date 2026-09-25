@@ -89,6 +89,63 @@ jobs:
           if ($msi.Count -lt 1) { throw "MSI installer was not produced." }
           $nsis | Select-Object FullName,Length
           $msi | Select-Object FullName,Length
+      - name: Windows installer runtime smoke test
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $nsis = (Get-ChildItem "src-tauri/target/release/bundle/nsis/*.exe" | Select-Object -First 1).FullName
+          $msi = (Get-ChildItem "src-tauri/target/release/bundle/msi/*.msi" | Select-Object -First 1).FullName
+
+          function Stop-Adam {
+            Get-Process -Name Adam -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 2
+          }
+
+          function Assert-NoAdamData {
+            $paths = @(
+              (Join-Path $env:APPDATA "com.saeedhub.adam"),
+              (Join-Path $env:LOCALAPPDATA "com.saeedhub.adam"),
+              (Join-Path $env:LOCALAPPDATA "Adam")
+            )
+            foreach ($p in $paths) { if (Test-Path $p) { throw "Adam user-data remained after uninstall: $p" } }
+          }
+
+          Start-Process -FilePath $nsis -ArgumentList "/S" -Wait
+          Start-Sleep -Seconds 5
+          $adamExe = Get-ChildItem $env:LOCALAPPDATA -Filter "Adam.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $adamExe) { throw "NSIS install did not produce Adam.exe." }
+          $p = Start-Process -FilePath $adamExe.FullName -PassThru
+          Start-Sleep -Seconds 5
+          if ($p.HasExited) { throw "Adam exited during NSIS runtime smoke test." }
+          Stop-Adam
+
+          $uninstall = Get-ChildItem $env:LOCALAPPDATA -Filter "uninstall.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $uninstall) { throw "NSIS uninstaller was not found." }
+          Start-Process -FilePath $uninstall.FullName -ArgumentList "/S" -Wait
+          Start-Sleep -Seconds 3
+          Stop-Adam
+          Assert-NoAdamData
+
+          $msiLog = Join-Path $env:TEMP "Adam-msi-install.log"
+          $proc = Start-Process msiexec.exe -ArgumentList @("/i", $msi, "/qn", "/norestart", "/L*v", $msiLog) -Wait -PassThru
+          if ($proc.ExitCode -ne 0) { throw "MSI install failed with exit code $($proc.ExitCode)." }
+          Start-Sleep -Seconds 5
+          $adamExe = Get-ChildItem $env:LOCALAPPDATA -Filter "Adam.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $adamExe) { throw "MSI install did not produce Adam.exe." }
+          $p = Start-Process -FilePath $adamExe.FullName -PassThru
+          Start-Sleep -Seconds 5
+          if ($p.HasExited) { throw "Adam exited during MSI runtime smoke test." }
+          Stop-Adam
+
+          $product = Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -eq "Adam" } | Select-Object -First 1
+          if (-not $product) { $product = Get-ItemProperty "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -eq "Adam" } | Select-Object -First 1 }
+          if (-not $product) { throw "MSI uninstall registration for Adam was not found." }
+          $proc = Start-Process msiexec.exe -ArgumentList @("/x", $product.PSChildName, "/qn", "/norestart") -Wait -PassThru
+          if ($proc.ExitCode -ne 0) { throw "MSI uninstall failed with exit code $($proc.ExitCode)." }
+          Start-Sleep -Seconds 3
+          Stop-Adam
+          Assert-NoAdamData
+          Write-Host "Windows installer runtime smoke test passed for NSIS and MSI."
       - uses: actions/upload-artifact@v4
         with:
           name: Adam-Windows-Installer
