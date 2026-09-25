@@ -9,6 +9,12 @@ export class AdamScene {
   root = new THREE.Group();
   mixer?: THREE.AnimationMixer;
   private loader = new GLTFLoader();
+  private actions: THREE.AnimationAction[] = [];
+  private activeAction?: THREE.AnimationAction;
+  private model?: THREE.Object3D;
+  private bones = new Map<string, THREE.Object3D>();
+  private idleTime = 0;
+  private baseRotations = new Map<string, THREE.Euler>();
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
@@ -27,17 +33,84 @@ export class AdamScene {
 
   async load(url: string) {
     this.root.clear();
+    this.mixer = undefined;
+    this.actions = [];
+    this.activeAction = undefined;
+    this.model = undefined;
+    this.bones.clear();
+    this.baseRotations.clear();
     try {
       const gltf = await this.loader.loadAsync(url);
+      this.model = gltf.scene;
       this.root.add(gltf.scene);
+      this.indexBones(gltf.scene);
       this.fit(gltf.scene);
       if (gltf.animations.length) {
         this.mixer = new THREE.AnimationMixer(gltf.scene);
-        this.mixer.clipAction(gltf.animations[0]).play();
+        this.actions = gltf.animations.map((clip) => {
+          const action = this.mixer!.clipAction(clip);
+          action.enabled = true;
+          action.clampWhenFinished = false;
+          return action;
+        });
+        this.playAnimation(0);
       }
     } catch {
       this.createFallback();
     }
+  }
+
+  private indexBones(obj: THREE.Object3D) {
+    obj.traverse((child) => {
+      if (!child.name) return;
+      this.bones.set(child.name.toLowerCase(), child);
+      if (child instanceof THREE.Bone) this.baseRotations.set(child.name.toLowerCase(), child.rotation.clone());
+    });
+  }
+
+  listAnimations() { return this.actions.length; }
+
+  playAnimation(index: number) {
+    if (!this.actions.length) return;
+    const next = this.actions[Math.max(0, Math.min(index, this.actions.length - 1))];
+    if (this.activeAction === next) return;
+    next.reset().fadeIn(0.25).play();
+    this.activeAction?.fadeOut(0.25);
+    this.activeAction = next;
+  }
+
+  stopAnimation() {
+    this.activeAction?.fadeOut(0.2);
+    this.activeAction = undefined;
+  }
+
+  private findBone(...names: string[]) {
+    for (const name of names) {
+      const found = this.bones.get(name.toLowerCase());
+      if (found) return found;
+    }
+    return undefined;
+  }
+
+  private applyProceduralIdle(dt: number) {
+    if (this.activeAction || !this.model) return;
+    this.idleTime += dt;
+    const t = this.idleTime;
+    const spine = this.findBone("spine", "spine1", "spine_1");
+    const head = this.findBone("head");
+    const neck = this.findBone("neck");
+    const leftArm = this.findBone("leftarm", "left_arm", "leftupperarm");
+    const rightArm = this.findBone("rightarm", "right_arm", "rightupperarm");
+    const breathe = Math.sin(t * 1.7) * 0.018;
+    const sway = Math.sin(t * 0.65) * 0.012;
+    if (spine) spine.rotation.x += breathe;
+    if (neck) neck.rotation.z += sway * 0.5;
+    if (head) {
+      head.rotation.y += Math.sin(t * 0.48) * 0.018;
+      head.rotation.x += Math.sin(t * 0.82 + 1.1) * 0.012;
+    }
+    if (leftArm) leftArm.rotation.z += Math.sin(t * 1.1) * 0.008;
+    if (rightArm) rightArm.rotation.z -= Math.sin(t * 1.1) * 0.008;
   }
 
   createFallback() {
@@ -75,6 +148,7 @@ export class AdamScene {
     requestAnimationFrame(this.animate);
     const dt = Math.min(this.clock.getDelta(), .05);
     this.mixer?.update(dt);
+    this.applyProceduralIdle(dt);
     this.root.rotation.y = Math.sin(performance.now() * .0007) * .025;
     this.renderer.render(this.scene, this.camera);
   };
