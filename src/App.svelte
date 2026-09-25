@@ -337,6 +337,28 @@
         {/if}
       </div>
       <button onclick={toggleThrough}>{clickThrough ? "Disable click-through" : "Enable click-through"}</button>
+      <button onclick={() => void openSafety()}>{lang === "ar" ? "الأمان والصلاحيات" : "Safety & Permissions"}</button>
+      {#if safetyOpen}
+        <div class="safety-panel">
+          <strong>{lang === "ar" ? "الصلاحيات" : "Permissions"}</strong>
+          {#each permissions as permission}
+            <label>
+              <span>{permission.capability}</span>
+              <select value={permission.mode} onchange={(e) => void changePermission(permission.capability, (e.currentTarget as HTMLSelectElement).value)}>
+                <option value="ask">Ask</option><option value="session">Session</option><option value="always">Always</option><option value="deny">Deny</option>
+              </select>
+            </label>
+          {/each}
+          <button onclick={() => void stopAll()}>{lang === "ar" ? "إيقاف جميع عمليات الكمبيوتر" : "Emergency stop"}</button>
+          {#if activity.length}
+            <div class="activity-log">
+              {#each activity.slice(0, 20) as item}
+                <div><small>{item.createdAt}</small> — {item.action}: {item.detail}</div>
+              {/each}
+            </div>
+          {/if}
+        </div>
+      {/if}
     </div>
   {/if}
 </div>
