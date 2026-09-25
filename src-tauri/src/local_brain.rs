@@ -21,10 +21,11 @@ fn extract_after_any<'a>(input:&'a str,markers:&[&str])->&'a str{
     for marker in markers {
         let lower=trimmed.to_lowercase(); let ml=marker.to_lowercase();
         if let Some(pos)=lower.find(&ml) {
-            let prefix=&trimmed[..pos]; let marker_original=&trimmed[pos..];
-            let take=marker_original.char_indices().nth(marker.chars().count()).map(|(i,_)|i).unwrap_or(marker_original.len());
-            let _=prefix;
-            return marker_original[take..].trim().trim_matches([':', '-', ' ']);
+            let char_pos=lower[..pos].chars().count();
+            let mut iter=trimmed.char_indices();
+            let byte_pos=iter.nth(char_pos).map(|(i,_)|i).unwrap_or(trimmed.len());
+            let marker_end=trimmed[byte_pos..].char_indices().nth(marker.chars().count()).map(|(i,_)|i).unwrap_or(trimmed[byte_pos..].len());
+            return trimmed[byte_pos+marker_end..].trim().trim_matches([':', '-', ' ']);
         }
     }
     trimmed
