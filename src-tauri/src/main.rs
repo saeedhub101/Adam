@@ -352,6 +352,7 @@ fn excluded_app_remove(app: tauri::AppHandle, name: String) -> Result<(), String
 }
 #[tauri::command]
 fn emergency_stop(app: tauri::AppHandle) -> Result<(), String> {
+    computer::stop_all();
     permissions::add_log(
         &memory_path(&app)?,
         "emergency_stop",
