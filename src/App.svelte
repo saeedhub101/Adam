@@ -214,55 +214,55 @@
   <div class="bubble">{t(lang, "idle")}</div>
   {#if showMenu}
     <div class="menu">
-      <button on:click|stopPropagation={chooseCharacter}>{t(lang,"changeCharacter")}</button>
+      <button onclick={chooseCharacter}>{t(lang,"changeCharacter")}</button>
       <label>{t(lang,"size")} {size}% <input type="range" min="60" max="160" bind:value={size} on:input={resizeAdam}/></label>
-      <button on:click|stopPropagation={() => { lang = lang === "en" ? "ar" : "en"; setupVoice(); }}>{lang === "en" ? "العربية" : "English"}</button>
-      <button on:click|stopPropagation={() => chatOpen = !chatOpen}>{lang === "ar" ? "محادثة الذكاء الاصطناعي" : "AI Chat"}</button>
+      <button onclick={() => { lang = lang === "en" ? "ar" : "en"; setupVoice(); }}>{lang === "en" ? "العربية" : "English"}</button>
+      <button onclick={() => chatOpen = !chatOpen}>{lang === "ar" ? "محادثة الذكاء الاصطناعي" : "AI Chat"}</button>
       {#if chatOpen}<div class="chat-panel">
           <label>Provider <select bind:value={provider} on:change={selectProvider}>{#each Object.entries(providers) as [key, p]}<option value={key}>{p.name}</option>{/each}</select></label>
           {#if provider === "custom"}<input placeholder="https://your-provider/v1" bind:value={customBaseUrl} />{/if}
           <input placeholder="Model" bind:value={model} />
           <textarea rows="2" placeholder="Adam persona" bind:value={persona}></textarea>
           <label><input type="checkbox" bind:checked={offlineFallback} /> Offline fallback</label>
-          <button on:click|stopPropagation={saveCloudConfig}>Save AI settings</button>{#if !cloudReady}<input type="password" placeholder="API key" bind:value={cloudKey} /><button on:click|stopPropagation={saveCloudKey}>Save key</button>{:else}<input placeholder={lang === "ar" ? "اكتب لآدم" : "Message Adam"} bind:value={chatInput} on:keydown={(e) => e.key === "Enter" && sendChat()} /><button disabled={chatBusy} on:click|stopPropagation={() => sendChat()}>{chatBusy ? "..." : "Send"}</button><button on:click|stopPropagation={async () => { await deleteApiKey(); cloudReady = false; }}>Remove key</button>{/if}{#if chatReply}<div class="chat-reply">{chatReply}</div>{/if}</div>{/if}
-      <button class:active={listening} on:click|stopPropagation={toggleVoice}>{listening ? "● " : "🎙 "} {listening ? (lang === "ar" ? "استماع..." : "Listening...") : (lang === "ar" ? "الميكروفون" : "Microphone")}</button>
+          <button onclick={saveCloudConfig}>Save AI settings</button>{#if !cloudReady}<input type="password" placeholder="API key" bind:value={cloudKey} /><button onclick={saveCloudKey}>Save key</button>{:else}<input placeholder={lang === "ar" ? "اكتب لآدم" : "Message Adam"} bind:value={chatInput} on:keydown={(e) => e.key === "Enter" && sendChat()} /><button disabled={chatBusy} onclick={() => sendChat()}>{chatBusy ? "..." : "Send"}</button><button onclick={async () => { await deleteApiKey(); cloudReady = false; }}>Remove key</button>{/if}{#if chatReply}<div class="chat-reply">{chatReply}</div>{/if}</div>{/if}
+      <button class:active={listening} onclick={toggleVoice}>{listening ? "● " : "🎙 "} {listening ? (lang === "ar" ? "استماع..." : "Listening...") : (lang === "ar" ? "الميكروفون" : "Microphone")}</button>
       {#if transcript}<div class="transcript">{transcript}</div>{/if}
-      <button class:active={voiceBusy} on:click|stopPropagation={toggleLocalVoice}>{voiceBusy ? "Loading Whisper…" : whisperReady ? "Local Whisper" : "Load Local Whisper"}</button>
+      <button class:active={voiceBusy} onclick={toggleLocalVoice}>{voiceBusy ? "Loading Whisper…" : whisperReady ? "Local Whisper" : "Load Local Whisper"}</button>
       <div class="memory-panel">
-        <button on:click|stopPropagation={async () => { reminderOpen = !reminderOpen; if (reminderOpen) await refreshReminders(); }}>
+        <button onclick={async () => { reminderOpen = !reminderOpen; if (reminderOpen) await refreshReminders(); }}>
           {lang === "ar" ? "تذكيرات" : "Reminders"}
         </button>
         {#if reminderOpen}
           <div class="reminder-panel">
             <input placeholder={lang === "ar" ? "عنوان التذكير" : "Reminder title"} bind:value={reminderTitle} />
             <input type="datetime-local" bind:value={reminderDue} />
-            <button on:click|stopPropagation={createReminder}>{lang === "ar" ? "إضافة" : "Add"}</button>
+            <button onclick={createReminder}>{lang === "ar" ? "إضافة" : "Add"}</button>
             {#each reminders.slice(0, 8) as reminder}
               <div class:completed={reminder.completed} class="reminder-item">
                 <span>{reminder.title}</span>
                 <small>{new Date(reminder.dueAt).toLocaleString()}</small>
-                {#if !reminder.completed}<button on:click|stopPropagation={async () => { await completeReminder(reminder.id); await refreshReminders(); }}>✓</button>{/if}
+                {#if !reminder.completed}<button onclick={async () => { await completeReminder(reminder.id); await refreshReminders(); }}>✓</button>{/if}
               </div>
             {/each}
           </div>
         {/if}
 
         <input placeholder={lang === "ar" ? "ابحث في الذاكرة" : "Search memory"} bind:value={memoryQuery} />
-<button on:click|stopPropagation={async () => { memoryOpen = !memoryOpen; if (memoryOpen) memories = memoryQuery.trim() ? await searchMemories(memoryQuery) : await listMemories(); }}>
+<button onclick={async () => { memoryOpen = !memoryOpen; if (memoryOpen) memories = memoryQuery.trim() ? await searchMemories(memoryQuery) : await listMemories(); }}>
           {lang === "ar" ? "ذاكرة" : "Memory"}
         </button>
         {#if memoryOpen}
         {#each memories.slice(0, 5) as memory}
-          <div class="memory-item"><span>{memory.content}</span><button on:click|stopPropagation={async () => { const value = window.prompt("Edit memory", memory.content); if (value !== null && value.trim()) { await updateMemory(memory.id, value.trim(), memory.kind); memories = memoryQuery.trim() ? await searchMemories(memoryQuery) : await listMemories(); } }}>Edit</button><button on:click|stopPropagation={async () => { await deleteMemory(memory.id); memories = memoryQuery.trim() ? await searchMemories(memoryQuery) : await listMemories(); }}>Delete</button></div>
+          <div class="memory-item"><span>{memory.content}</span><button onclick={async () => { const value = window.prompt("Edit memory", memory.content); if (value !== null && value.trim()) { await updateMemory(memory.id, value.trim(), memory.kind); memories = memoryQuery.trim() ? await searchMemories(memoryQuery) : await listMemories(); } }}>Edit</button><button onclick={async () => { await deleteMemory(memory.id); memories = memoryQuery.trim() ? await searchMemories(memoryQuery) : await listMemories(); }}>Delete</button></div>
         {/each}
         {/if}
         {#if transcript}
-          <button on:click|stopPropagation={async () => { await addMemory(transcript, "voice"); memories = await listMemories(); }}>
+          <button onclick={async () => { await addMemory(transcript, "voice"); memories = await listMemories(); }}>
             {lang === "ar" ? "حفظ الكلام" : "Save transcript"}
           </button>
         {/if}
       </div>
-      <button on:click|stopPropagation={toggleThrough}>✓</button>
+      <button onclick={toggleThrough}>✓</button>
     </div>
   {/if}
 </div>
