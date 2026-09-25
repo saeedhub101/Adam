@@ -103,14 +103,18 @@ export class AdamScene {
     const rightArm = this.findBone("rightarm", "right_arm", "rightupperarm");
     const breathe = Math.sin(t * 1.7) * 0.018;
     const sway = Math.sin(t * 0.65) * 0.012;
-    if (spine) spine.rotation.x += breathe;
-    if (neck) neck.rotation.z += sway * 0.5;
-    if (head) {
-      head.rotation.y += Math.sin(t * 0.48) * 0.018;
-      head.rotation.x += Math.sin(t * 0.82 + 1.1) * 0.012;
-    }
-    if (leftArm) leftArm.rotation.z += Math.sin(t * 1.1) * 0.008;
-    if (rightArm) rightArm.rotation.z -= Math.sin(t * 1.1) * 0.008;
+    const setDelta = (bone: THREE.Object3D | undefined, axis: "x" | "y" | "z", value: number) => {
+      if (!bone) return;
+      const base = this.baseRotations.get(bone.name.toLowerCase());
+      if (!base) return;
+      bone.rotation[axis] = base[axis] + value;
+    };
+    setDelta(spine, "x", breathe);
+    setDelta(neck, "z", sway * 0.5);
+    setDelta(head, "y", Math.sin(t * 0.48) * 0.018);
+    setDelta(head, "x", Math.sin(t * 0.82 + 1.1) * 0.012);
+    setDelta(leftArm, "z", Math.sin(t * 1.1) * 0.008);
+    setDelta(rightArm, "z", -Math.sin(t * 1.1) * 0.008);
   }
 
   createFallback() {
