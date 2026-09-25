@@ -13,12 +13,12 @@
   let memories: Memory[] = [];
   let memoryQuery = "";
   let memoryOpen = false;
-  let dragX = 0;
-  let dragY = 0;
-  let reminders: Reminder[] = [];
-  let reminderOpen = false;
-  let reminderTitle = "";
-  let reminderDue = "";
+  let dragX = $state(0);
+  let dragY = $state(0);
+  let reminders: Reminder[] = $state([]);
+  let reminderOpen = $state(false);
+  let reminderTitle = $state("");
+  let reminderDue = $state("");
   let chatOpen = $state(false); let chatInput = $state(""); let chatReply = $state(""); let cloudKey = $state(""); let cloudReady = $state(false); let chatBusy = $state(false);
   let provider = $state("openai"); let model = $state("gpt-4o-mini");
   let persona = $state("You are Adam, a helpful desktop AI companion. Be concise, friendly, and practical.");
@@ -30,14 +30,14 @@
   let lang: Lang = $state("en");
   let size = $state(100);
   let showMenu = $state(false);
-  let dragging = false;
-  let lastX = 0;
-  let lastY = 0;
+  let dragging = $state(false);
+  let lastX = $state(0);
+  let lastY = $state(0);
   let listening = $state(false);
   let transcript = $state("");
-  let recognition: any;
-  let safetyOpen = false; let permissions: Permission[] = []; let activity: Activity[] = [];
-  let localVoice: LocalWhisperVoice | undefined; let whisperReady = $state(false); let voiceBusy = $state(false);
+  let recognition: any = $state();
+  let safetyOpen = $state(false); let permissions: Permission[] = $state([]); let activity: Activity[] = $state([]);
+  let localVoice: LocalWhisperVoice | undefined = $state(); let whisperReady = $state(false); let voiceBusy = $state(false);
 
   async function setupLocalVoice() {
     if (!localVoice) localVoice = new LocalWhisperVoice((status) => { whisperReady = status === "ready"; voiceBusy = status === "loading"; });
