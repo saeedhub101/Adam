@@ -1,3 +1,5 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 mod agent;
 mod ai;
 mod calendar;
@@ -9,7 +11,9 @@ mod reminders;
 
 use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf};
-use tauri::{Manager, PhysicalPosition, PhysicalSize, WebviewWindow};
+use tauri::{Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewWindow};
+use tauri::menu::{MenuBuilder, MenuItemBuilder};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 
 const BASE_WIDTH: u32 = 360;
 const BASE_HEIGHT: u32 = 520;
@@ -89,6 +93,50 @@ fn main() {
                 .get_webview_window("main")
                 .ok_or("main window missing")?;
             let _ = win.set_ignore_cursor_events(false);
+            let show = MenuItemBuilder::with_id("show", "Show Adam").build(app)?;
+            let chat = MenuItemBuilder::with_id("chat", "Open AI Chat").build(app)?;
+            let settings = MenuItemBuilder::with_id("settings", "Open Settings").build(app)?;
+            let exit = MenuItemBuilder::with_id("exit", "Exit Adam").build(app)?;
+            let menu = MenuBuilder::new(app).items(&[&show, &chat, &settings, &exit]).build()?;
+            TrayIconBuilder::new()
+                .icon(tauri::include_image!("./icons/icon.ico"))
+                .tooltip("Adam")
+                .menu(&menu)
+                .on_menu_event(|app, event| match event.id().as_ref() {
+                    "show" => {
+                        if let Some(w) = app.get_webview_window("main") {
+                            let _ = w.show();
+                            let _ = w.set_focus();
+                        }
+                    }
+                    "chat" => {
+                        if let Some(w) = app.get_webview_window("main") {
+                            let _ = w.show();
+                            let _ = w.set_focus();
+                            let _ = app.emit("adam://open-chat", ());
+                        }
+                    }
+                    "settings" => {
+                        if let Some(w) = app.get_webview_window("main") {
+                            let _ = w.show();
+                            let _ = w.set_focus();
+                            let _ = app.emit("adam://open-settings", ());
+                        }
+                    }
+                    "exit" => {
+                        app.exit(0);
+                    }
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
+                        if let Some(w) = tray.app_handle().get_webview_window("main") {
+                            let _ = w.show();
+                            let _ = w.set_focus();
+                        }
+                    }
+                })
+                .build(app)?;
 
             let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
             fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
@@ -111,6 +159,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             set_ignore_cursor_events,
             set_character_size,
+            set_character_dimensions,
             save_position,
             load_position,
             memory_add,
@@ -171,6 +220,25 @@ fn set_character_size(
     window
         .set_position(PhysicalPosition::new(x, y))
         .map_err(|e| e.to_string())?;
+    write_state(&app, &WindowState { x, y, size })
+}
+
+#[tauri::command]
+fn set_character_dimensions(
+    app: tauri::AppHandle,
+    window: WebviewWindow,
+    width: u32,
+    height: u32,
+    size: u32,
+) -> Result<(), String> {
+    let width = width.clamp(180, 640);
+    let height = height.clamp(220, 760);
+    let size = size.clamp(60, 160);
+    let current = window.outer_position().unwrap_or(PhysicalPosition::new(0, 0));
+    let physical = PhysicalSize::new(width, height);
+    let (x, y) = clamp_position(&window, current.x, current.y, physical);
+    window.set_size(physical).map_err(|e| e.to_string())?;
+    window.set_position(PhysicalPosition::new(x, y)).map_err(|e| e.to_string())?;
     write_state(&app, &WindowState { x, y, size })
 }
 
