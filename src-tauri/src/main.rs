@@ -138,7 +138,7 @@ fn main() {
             calendar_delete,
             emergency_stop,
             agent_route,
-            computer_open
+            computer_open,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Adam");
@@ -361,14 +361,20 @@ fn emergency_stop(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn agent_route(app: tauri::AppHandle, input: String, language: String) -> Result<Option<agent::AgentResult>, String> {
+fn agent_route(
+    app: tauri::AppHandle,
+    input: String,
+    language: String,
+) -> Result<Option<agent::AgentResult>, String> {
     agent::route(&memory_path(&app)?, &input, &language)
 }
 
 #[tauri::command]
 fn computer_open(app: tauri::AppHandle, target: String) -> Result<String, String> {
     let path = memory_path(&app)?;
-    if !permissions::allowed(&path, "computer.open")? { return Err("computer.open permission is not enabled".into()); }
+    if !permissions::allowed(&path, "computer.open")? {
+        return Err("computer.open permission is not enabled".into());
+    }
     let label = computer::open_target(&target)?;
     permissions::add_log(&path, "computer.open", &label)?;
     Ok(label)
